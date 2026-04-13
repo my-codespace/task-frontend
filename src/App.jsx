@@ -392,6 +392,67 @@ const HulkOverlay = ({ visible }) => (
     )}
   </AnimatePresence>
 );
+/* ─────────────────────────────────────────────
+   AMBIENT AUDIO CONTROLLER
+───────────────────────────────────────────── */
+const AudioController = () => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.2); // Start at 20% volume so it isn't deafening
+
+  // useRef holds our audio engine so it doesn't get destroyed when React re-renders the page
+  // I have linked a free, dark sci-fi ambient drone track for the JARVIS vibe!
+  const audioRef = useRef(new Audio('/theme.mp3'));
+
+  useEffect(() => {
+    // Tell the audio object to loop forever
+    audioRef.current.loop = true; 
+    // Link our React volume state to the actual HTML5 audio volume
+    audioRef.current.volume = volume;
+
+    if (isPlaying) {
+      // The browser allows this because the user explicitly clicked "PLAY"
+      audioRef.current.play().catch(e => console.log("Audio blocked:", e));
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, volume]);
+
+  return (
+    <div className="border border-cyan-900 p-2 space-y-2 mt-3">
+      <div className="text-[10px] tracking-[0.25em] text-cyan-700 flex justify-between">
+        <span>AMBIENT AUDIO</span>
+        <span className={isPlaying ? "text-cyan-400 animate-pulse" : "text-cyan-800"}>
+          {isPlaying ? "PLAYING" : "MUTED"}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3">
+        {/* The vital user-interaction button that bypasses the Autoplay Policy */}
+        <button
+          onClick={() => setIsPlaying(!isPlaying)}
+          className={`border px-3 py-1 text-[10px] font-bold tracking-widest transition-all ${
+            isPlaying
+              ? 'border-cyan-500 bg-cyan-950/30 text-cyan-300'
+              : 'border-cyan-800 text-cyan-600 hover:border-cyan-500'
+          }`}
+        >
+          {isPlaying ? '■ STOP' : '▶ PLAY'}
+        </button>
+
+        {/* Volume Slider */}
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={volume}
+          onChange={(e) => setVolume(parseFloat(e.target.value))}
+          className="flex-1 accent-cyan-500 h-1 bg-cyan-950 appearance-none rounded-full cursor-pointer"
+        />
+      </div>
+    </div>
+  );
+};
 
 /* ─────────────────────────────────────────────
    SORTABLE TASK CARD
@@ -804,6 +865,7 @@ export default function App() {
             </div>
             <WeatherWidget data={weather} />
             <CryptoTicker data={crypto} />
+            <AudioController />
             <div className="border-t border-cyan-950 pt-3">
               <div className="text-[10px] tracking-[0.25em] text-cyan-700 mb-2">TARGETING GRID</div>
               <TargetReticle />
