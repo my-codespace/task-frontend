@@ -392,6 +392,109 @@ const HulkOverlay = ({ visible }) => (
     )}
   </AnimatePresence>
 );
+
+/* ─────────────────────────────────────────────
+   AUTHORIZATION TERMINAL (LOGIN/REGISTER)
+───────────────────────────────────────────── */
+const LoginScreen = ({ setToken }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    // Choose the endpoint based on whether we are registering or logging in
+    const endpoint = isRegistering ? '/register' : '/login';
+    
+    try {
+      const response = await fetch(`https://task-api-xo97.onrender.com${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Authorization failed.');
+      }
+      
+      if (isRegistering) {
+        // If we just registered, automatically switch them to the login view
+        setIsRegistering(false);
+        setError('REGISTRATION SUCCESSFUL. PLEASE AUTHENTICATE.');
+      } else {
+        // If we logged in, save the token to the browser and update React state!
+        localStorage.setItem('jarvisToken', data.token);
+        setToken(data.token);
+        if ('speechSynthesis' in window) {
+          const u = new SpeechSynthesisUtterance("Welcome back, sir. All systems online.");
+          u.pitch = 0.8;
+          window.speechSynthesis.speak(u);
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center font-mono p-4 relative overflow-hidden text-cyan-400">
+      {/* Background Grid */}
+      <div className="absolute inset-0 w-full h-full opacity-10 pointer-events-none" style={{ background: 'linear-gradient(rgba(34,211,238,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.2) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+      
+      <div className="border border-cyan-800 p-8 max-w-md w-full relative bg-cyan-950/10" style={{ boxShadow: '0 0 30px rgba(34,211,238,0.05) inset' }}>
+        {/* Corner Accents */}
+        <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400" />
+        <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
+        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
+        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400" />
+
+        <div className="text-center mb-8 border-b border-cyan-900 pb-4">
+          <h2 className="text-2xl tracking-[0.3em] font-bold text-cyan-300" style={{ textShadow: '0 0 10px rgba(34,211,238,0.5)' }}>STARK MAINFRAME</h2>
+          <p className="text-xs tracking-[0.4em] text-cyan-700 mt-2">AUTHORIZATION REQUIRED</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-[10px] tracking-widest text-cyan-700 mb-2">IDENTIFIER</label>
+            <input 
+              type="text" value={username} onChange={e => setUsername(e.target.value)} required
+              className="w-full bg-transparent border-b border-cyan-800 text-cyan-200 px-2 py-2 outline-none focus:border-cyan-400 transition-all tracking-widest uppercase"
+              placeholder="ENTER USERNAME"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] tracking-widest text-cyan-700 mb-2">PASSCODE</label>
+            <input 
+              type="password" value={password} onChange={e => setPassword(e.target.value)} required
+              className="w-full bg-transparent border-b border-cyan-800 text-cyan-200 px-2 py-2 outline-none focus:border-cyan-400 transition-all tracking-widest"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error && (
+            <div className={`text-[10px] tracking-widest text-center animate-pulse ${error.includes('SUCCESS') ? 'text-green-500' : 'text-red-500'}`}>
+              {error}
+            </div>
+          )}
+
+          <div className="pt-4 flex flex-col gap-4">
+            <button type="submit" className="w-full border border-cyan-600 py-3 text-xs tracking-[0.3em] font-bold hover:bg-cyan-900/40 hover:border-cyan-300 transition-all" style={{ boxShadow: '0 0 15px rgba(34,211,238,0.1)' }}>
+              {isRegistering ? 'INITIALIZE CREDENTIALS' : 'AUTHENTICATE'}
+            </button>
+            <button type="button" onClick={() => { setIsRegistering(!isRegistering); setError(''); }} className="text-[10px] text-cyan-700 hover:text-cyan-400 tracking-widest transition-colors">
+              {isRegistering ? 'RETURN TO LOGIN' : 'REQUEST NEW CLEARANCE'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 /* ─────────────────────────────────────────────
    AMBIENT AUDIO CONTROLLER
 ───────────────────────────────────────────── */
@@ -526,6 +629,7 @@ export default function App() {
   const [completedIds, setCompletedIds] = useState(new Set());
   const [missionVisible, setMissionVisible] = useState(false);
   const [hulkMode, setHulkMode] = useState(false);
+  const [token, setToken] = useState(localStorage.getItem('jarvisToken'));
 
   // Voice
   const [voiceActive, setVoiceActive] = useState(false);
@@ -542,11 +646,32 @@ export default function App() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+  /* ── Override Protocol (Logout) ── */
+  const handleLogout = useCallback(() => {
+    // 1. Erase the token from the browser's memory
+    localStorage.removeItem('jarvisToken');
+    // 2. Clear the React state, which instantly triggers the ternary operator to show the Login screen
+    setToken(null);
+    // 3. Clear out the tasks so the next person logging in doesn't see a flash of your data
+    setTasks([]); 
+    
+    speak('Authorization revoked. Goodbye, sir.');
+  }, []);
 
   /* ── Fetch tasks ── */
   const fetchTasks = useCallback(() => {
-    fetch(API).then(r => r.json()).then(setTasks).catch(console.error);
-  }, []);
+    if(!token) return;
+    fetch(API, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(r => {
+      // THE AUTO-EJECT SAFETY CHECK
+      if (r.status === 401 || r.status === 403) {
+        handleLogout(); // Trigger the logout sequence
+        throw new Error("Authorization expired."); // Stop running the rest of the code
+      }
+      return r.json();
+    }).then(setTasks).catch(console.error);
+  }, [token, handleLogout]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
@@ -570,41 +695,45 @@ export default function App() {
 
   /* ── Create task ── */
   const createTask = useCallback((title) => {
+    if(!token) return;
     if (!title?.trim()) return;
     speak('Directive logged.');
-    fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) })
+    fetch(API, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) })
       .then(() => { setNewTaskTitle(''); fetchTasks(); });
-  }, [fetchTasks]);
+  }, [fetchTasks, token]);
 
   /* ── Delete task ── */
   const deleteTask = useCallback((id) => {
+    if(!token) return;
     speak('Directive purged.');
-    fetch(`${API}/${id}`, { method: 'DELETE' }).then(fetchTasks);
-  }, [fetchTasks]);
+    fetch(`${API}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }).then(fetchTasks);
+  }, [fetchTasks, token]);
 
   /* ── Complete task → Mission Accomplished ── */
   const completeTask = useCallback((task) => {
+    if(!token) return;
     speak('Mission accomplished, sir.');
     setCompletedIds(prev => new Set([...prev, task._id]));
     setMissionVisible(true);
     setTimeout(() => setMissionVisible(false), 2800);
     setTimeout(() => {
-      fetch(`${API}/${task._id}`, { method: 'DELETE' }).then(() => {
+      fetch(`${API}/${task._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }).then(() => {
         setCompletedIds(prev => { const n = new Set(prev); n.delete(task._id); return n; });
-        fetchTasks();
+        fetchTasks(token);
       });
     }, 3200);
   }, [fetchTasks]);
 
   /* ── HULK MODE ── */
   const triggerHulk = useCallback(async () => {
+    if(!token) return;
     speak('Code green, sir. Initiating Hulk protocol.');
     setHulkMode(true);
     setTimeout(async () => {
       try {
-        const current = await fetch(API).then(r => r.json());
-        await Promise.all(current.map(t => fetch(`${API}/${t._id}`, { method: 'DELETE' })));
-        fetchTasks();
+        const current = await fetch(API, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json());
+        await Promise.all(current.map(t => fetch(`${API}/${t._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })));
+        fetchTasks(token);
       } catch (e) { console.error(e); }
     }, 2000);
     setTimeout(() => {
@@ -623,7 +752,7 @@ export default function App() {
       });
     }
   };
-
+  
   /* ── Voice control ── */
   const startVoice = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -685,11 +814,13 @@ export default function App() {
     if (newTaskTitle.toLowerCase().includes('hulk smash')) { triggerHulk(); setNewTaskTitle(''); return; }
     createTask(newTaskTitle);
   };
+  
 
   /* ══════════════════════════
      RENDER
   ══════════════════════════ */
   return (
+    token ? (
     <div className={`min-h-screen font-mono overflow-hidden relative transition-colors duration-700 ${hulkMode ? 'bg-green-950' : 'bg-black'} text-cyan-400`}>
 
       <HexGrid />
@@ -719,7 +850,17 @@ export default function App() {
         <div className="flex justify-between items-center mb-2 px-2 text-[10px] tracking-[0.3em] text-cyan-800 border-b border-cyan-950 pb-2">
           <span>STARK INDUSTRIES // CLASSIFIED</span>
           <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="text-red-500">● LIVE FEED</motion.span>
-          <span>MARK VIII // J.A.R.V.I.S. v4.2</span>
+          
+          <div className="flex items-center gap-4">
+            <span>MARK VIII // J.A.R.V.I.S. v4.2</span>
+            {/* The Manual Override Button */}
+            <button 
+              onClick={handleLogout}
+              className="border border-red-900 text-red-700 hover:bg-red-950/50 hover:text-red-400 hover:border-red-500 px-2 py-0.5 transition-all"
+            >
+              [ OVERRIDE ]
+            </button>
+          </div>
         </div>
 
         {/* Three-column grid */}
@@ -889,6 +1030,9 @@ export default function App() {
           <span>BUILD 4.2.1 // LEVEL 7 CLEARANCE</span>
         </div>
       </div>
-    </div>
+    </div> 
+    ) : (
+      <LoginScreen setToken={setToken} />
+    )
   );
 }
