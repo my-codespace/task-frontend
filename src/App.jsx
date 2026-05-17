@@ -325,20 +325,18 @@ const MissionOverlay = ({ visible }) => (
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="fixed inset-0 z-[100] flex flex-col items-center justify-center pointer-events-none"
         style={{ background: 'radial-gradient(ellipse at center, rgba(34,197,94,0.15) 0%, rgba(0,0,0,0.88) 70%)' }}>
-        {/* Flash */}
         <motion.div initial={{ opacity: 0.7 }} animate={{ opacity: 0 }} transition={{ duration: 0.4 }}
           className="absolute inset-0 bg-green-400" />
-        {/* Corner brackets */}
         {[['top-8 left-8','border-t-4 border-l-4'],['top-8 right-8','border-t-4 border-r-4'],
           ['bottom-8 left-8','border-b-4 border-l-4'],['bottom-8 right-8','border-b-4 border-r-4']].map(([p,b],i) => (
           <div key={i} className={`absolute ${p} w-16 h-16 ${b} border-green-400`} />
         ))}
         <motion.div initial={{ scale: 0.5, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: -20 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }} className="text-center">
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }} className="text-center px-4">
           <div className="text-green-300 text-[10px] tracking-[0.5em] mb-4">// DIRECTIVE STATUS</div>
-          <div className="text-6xl font-bold tracking-[0.15em] text-green-400 mb-2"
+          <div className="text-4xl sm:text-6xl font-bold tracking-[0.15em] text-green-400 mb-2"
             style={{ textShadow: '0 0 20px rgba(34,197,94,1), 0 0 50px rgba(34,197,94,0.6)' }}>MISSION</div>
-          <div className="text-6xl font-bold tracking-[0.15em] text-green-300 mb-6"
+          <div className="text-4xl sm:text-6xl font-bold tracking-[0.15em] text-green-300 mb-6"
             style={{ textShadow: '0 0 20px rgba(134,239,172,1), 0 0 50px rgba(134,239,172,0.5)' }}>ACCOMPLISHED</div>
           <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5, repeat: 2 }}
             className="text-green-600 text-sm tracking-[0.4em]">— SIR —</motion.div>
@@ -363,15 +361,15 @@ const HulkOverlay = ({ visible }) => (
         <motion.div
           animate={{ x: [0,-8,8,-8,8,-5,5,-3,3,0], y: [0,4,-4,4,-4,2,-2,1,-1,0] }}
           transition={{ duration: 0.5, repeat: 4 }}
-          className="text-center relative z-10">
+          className="text-center relative z-10 px-4">
           <div className="text-8xl mb-4">💚</div>
           <motion.div
             animate={{ scale: [1,1.05,1] }} transition={{ duration: 0.5, repeat: 6 }}
-            className="text-7xl font-black tracking-[0.1em] text-green-400 mb-2"
+            className="text-5xl sm:text-7xl font-black tracking-[0.1em] text-green-400 mb-2"
             style={{ textShadow: '0 0 30px rgba(34,197,94,1), 0 0 60px rgba(34,197,94,0.5)' }}>
             HULK
           </motion.div>
-          <div className="text-7xl font-black tracking-[0.1em] text-green-300"
+          <div className="text-5xl sm:text-7xl font-black tracking-[0.1em] text-green-300"
             style={{ textShadow: '0 0 30px rgba(134,239,172,1)' }}>
             SMASH!!!
           </div>
@@ -405,29 +403,19 @@ const LoginScreen = ({ setToken }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    // Choose the endpoint based on whether we are registering or logging in
     const endpoint = isRegistering ? '/register' : '/login';
-    
     try {
       const response = await fetch(`https://task-api-xo97.onrender.com${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      
       const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Authorization failed.');
-      }
-      
+      if (!response.ok) throw new Error(data.error || 'Authorization failed.');
       if (isRegistering) {
-        // If we just registered, automatically switch them to the login view
         setIsRegistering(false);
         setError('REGISTRATION SUCCESSFUL. PLEASE AUTHENTICATE.');
       } else {
-        // If we logged in, save the token to the browser and update React state!
         localStorage.setItem('jarvisToken', data.token);
         setToken(data.token);
         if ('speechSynthesis' in window) {
@@ -443,25 +431,20 @@ const LoginScreen = ({ setToken }) => {
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center font-mono p-4 relative overflow-hidden text-cyan-400">
-      {/* Background Grid */}
       <div className="absolute inset-0 w-full h-full opacity-10 pointer-events-none" style={{ background: 'linear-gradient(rgba(34,211,238,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.2) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-      
-      <div className="border border-cyan-800 p-8 max-w-md w-full relative bg-cyan-950/10" style={{ boxShadow: '0 0 30px rgba(34,211,238,0.05) inset' }}>
-        {/* Corner Accents */}
+      <div className="border border-cyan-800 p-6 sm:p-8 max-w-md w-full relative bg-cyan-950/10" style={{ boxShadow: '0 0 30px rgba(34,211,238,0.05) inset' }}>
         <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400" />
         <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
         <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
         <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400" />
-
         <div className="text-center mb-8 border-b border-cyan-900 pb-4">
-          <h2 className="text-2xl tracking-[0.3em] font-bold text-cyan-300" style={{ textShadow: '0 0 10px rgba(34,211,238,0.5)' }}>STARK MAINFRAME</h2>
+          <h2 className="text-xl sm:text-2xl tracking-[0.3em] font-bold text-cyan-300" style={{ textShadow: '0 0 10px rgba(34,211,238,0.5)' }}>STARK MAINFRAME</h2>
           <p className="text-xs tracking-[0.4em] text-cyan-700 mt-2">AUTHORIZATION REQUIRED</p>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-[10px] tracking-widest text-cyan-700 mb-2">IDENTIFIER</label>
-            <input 
+            <input
               type="text" value={username} onChange={e => setUsername(e.target.value)} required
               className="w-full bg-transparent border-b border-cyan-800 text-cyan-200 px-2 py-2 outline-none focus:border-cyan-400 transition-all tracking-widest uppercase"
               placeholder="ENTER USERNAME"
@@ -469,19 +452,17 @@ const LoginScreen = ({ setToken }) => {
           </div>
           <div>
             <label className="block text-[10px] tracking-widest text-cyan-700 mb-2">PASSCODE</label>
-            <input 
+            <input
               type="password" value={password} onChange={e => setPassword(e.target.value)} required
               className="w-full bg-transparent border-b border-cyan-800 text-cyan-200 px-2 py-2 outline-none focus:border-cyan-400 transition-all tracking-widest"
               placeholder="••••••••"
             />
           </div>
-
           {error && (
             <div className={`text-[10px] tracking-widest text-center animate-pulse ${error.includes('SUCCESS') ? 'text-green-500' : 'text-red-500'}`}>
               {error}
             </div>
           )}
-
           <div className="pt-4 flex flex-col gap-4">
             <button type="submit" className="w-full border border-cyan-600 py-3 text-xs tracking-[0.3em] font-bold hover:bg-cyan-900/40 hover:border-cyan-300 transition-all" style={{ boxShadow: '0 0 15px rgba(34,211,238,0.1)' }}>
               {isRegistering ? 'INITIALIZE CREDENTIALS' : 'AUTHENTICATE'}
@@ -495,25 +476,19 @@ const LoginScreen = ({ setToken }) => {
     </div>
   );
 };
+
 /* ─────────────────────────────────────────────
    AMBIENT AUDIO CONTROLLER
 ───────────────────────────────────────────── */
 const AudioController = () => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.2); // Start at 20% volume so it isn't deafening
-
-  // useRef holds our audio engine so it doesn't get destroyed when React re-renders the page
-  // I have linked a free, dark sci-fi ambient drone track for the JARVIS vibe!
+  const [volume, setVolume] = useState(0.2);
   const audioRef = useRef(new Audio('/theme.mp3'));
 
   useEffect(() => {
-    // Tell the audio object to loop forever
-    audioRef.current.loop = true; 
-    // Link our React volume state to the actual HTML5 audio volume
+    audioRef.current.loop = true;
     audioRef.current.volume = volume;
-
     if (isPlaying) {
-      // The browser allows this because the user explicitly clicked "PLAY"
       audioRef.current.play().catch(e => console.log("Audio blocked:", e));
     } else {
       audioRef.current.pause();
@@ -528,9 +503,7 @@ const AudioController = () => {
           {isPlaying ? "PLAYING" : "MUTED"}
         </span>
       </div>
-
       <div className="flex items-center gap-3">
-        {/* The vital user-interaction button that bypasses the Autoplay Policy */}
         <button
           onClick={() => setIsPlaying(!isPlaying)}
           className={`border px-3 py-1 text-[10px] font-bold tracking-widest transition-all ${
@@ -541,14 +514,8 @@ const AudioController = () => {
         >
           {isPlaying ? '■ STOP' : '▶ PLAY'}
         </button>
-
-        {/* Volume Slider */}
         <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={volume}
+          type="range" min="0" max="1" step="0.05" value={volume}
           onChange={(e) => setVolume(parseFloat(e.target.value))}
           className="flex-1 accent-cyan-500 h-1 bg-cyan-950 appearance-none rounded-full cursor-pointer"
         />
@@ -559,6 +526,8 @@ const AudioController = () => {
 
 /* ─────────────────────────────────────────────
    SORTABLE TASK CARD
+   Mobile: buttons always visible (no hover)
+   Desktop: buttons appear on hover (unchanged)
 ───────────────────────────────────────────── */
 const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task._id });
@@ -574,7 +543,7 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
       animate={{ opacity: isCompleted ? 0.4 : 1, x: 0, filter: 'blur(0px)' }}
       exit={{ opacity: 0, x: 80, filter: 'blur(6px)' }}
       transition={{ duration: 0.35, delay: index * 0.05 }}
-      className={`flex justify-between items-center border bg-cyan-950/15 p-4 transition-all group relative
+      className={`border bg-cyan-950/15 p-3 sm:p-4 transition-all group relative
         ${isDragging
           ? 'border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)]'
           : isCompleted
@@ -584,35 +553,53 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
       <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-cyan-700 group-hover:border-cyan-400 transition-colors" />
       <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-cyan-700 group-hover:border-cyan-400 transition-colors" />
 
-      {/* Drag handle */}
-      <div {...attributes} {...listeners}
-        className="text-cyan-800 hover:text-cyan-500 cursor-grab active:cursor-grabbing mr-3 flex flex-col gap-0.5 shrink-0 select-none"
-        title="Drag to reorder">
-        {[0,1,2].map(i => (
-          <div key={i} className="flex gap-0.5">
-            {[0,1].map(j => <div key={j} className="w-1 h-1 rounded-full bg-current" />)}
-          </div>
-        ))}
+      {/* Top row: drag handle + task title */}
+      <div className="flex items-center gap-3">
+        {/* Drag handle */}
+        <div {...attributes} {...listeners}
+          className="text-cyan-800 hover:text-cyan-500 cursor-grab active:cursor-grabbing flex flex-col gap-0.5 shrink-0 select-none"
+          title="Drag to reorder">
+          {[0,1,2].map(i => (
+            <div key={i} className="flex gap-0.5">
+              {[0,1].map(j => <div key={j} className="w-1 h-1 rounded-full bg-current" />)}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <span className="text-cyan-800 text-xs w-5 shrink-0 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+          <div className="w-0.5 h-6 bg-cyan-800 group-hover:bg-cyan-500 transition-colors shrink-0" />
+          <span className={`text-sm tracking-wider uppercase truncate transition-colors
+            ${isCompleted ? 'text-green-600 line-through' : 'text-cyan-200 group-hover:text-cyan-50'}`}>
+            {task.title}
+          </span>
+        </div>
+
+        {/* Desktop: hover-only buttons */}
+        <div className="hidden sm:flex gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0 ml-2">
+          {!isCompleted && (
+            <button onClick={() => onComplete(task)}
+              className="text-green-500/70 hover:text-green-400 border border-green-500/30 hover:border-green-400 hover:bg-green-950/30 px-3 py-1 text-[10px] tracking-[0.15em] font-bold transition-all">
+              ✓ DONE
+            </button>
+          )}
+          <button onClick={() => onDelete(task._id)}
+            className="text-red-500/70 hover:text-red-400 border border-red-500/30 hover:border-red-400 hover:bg-red-950/30 px-3 py-1 text-[10px] tracking-[0.15em] font-bold transition-all">
+            PURGE
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <span className="text-cyan-800 text-xs w-5 shrink-0 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
-        <div className="w-0.5 h-6 bg-cyan-800 group-hover:bg-cyan-500 transition-colors shrink-0" />
-        <span className={`text-sm tracking-wider uppercase truncate transition-colors
-          ${isCompleted ? 'text-green-600 line-through' : 'text-cyan-200 group-hover:text-cyan-50'}`}>
-          {task.title}
-        </span>
-      </div>
-
-      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0 ml-2">
+      {/* Mobile: always-visible action buttons below the title */}
+      <div className="flex sm:hidden gap-2 mt-2 justify-end">
         {!isCompleted && (
           <button onClick={() => onComplete(task)}
-            className="text-green-500/70 hover:text-green-400 border border-green-500/30 hover:border-green-400 hover:bg-green-950/30 px-3 py-1 text-[10px] tracking-[0.15em] font-bold transition-all">
+            className="text-green-400 border border-green-500/40 bg-green-950/20 px-3 py-1 text-[10px] tracking-[0.15em] font-bold active:bg-green-950/50 transition-all">
             ✓ DONE
           </button>
         )}
         <button onClick={() => onDelete(task._id)}
-          className="text-red-500/70 hover:text-red-400 border border-red-500/30 hover:border-red-400 hover:bg-red-950/30 px-3 py-1 text-[10px] tracking-[0.15em] font-bold transition-all">
+          className="text-red-400 border border-red-500/40 bg-red-950/20 px-3 py-1 text-[10px] tracking-[0.15em] font-bold active:bg-red-950/50 transition-all">
           PURGE
         </button>
       </div>
@@ -631,6 +618,9 @@ export default function App() {
   const [hulkMode, setHulkMode] = useState(false);
   const [token, setToken] = useState(localStorage.getItem('jarvisToken'));
 
+  // Mobile panel navigation: 'tasks' | 'left' | 'right'
+  const [mobilePanel, setMobilePanel] = useState('tasks');
+
   // Voice
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -646,6 +636,7 @@ export default function App() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
   /* ── Override Protocol (Logout) ── */
   const handleLogout = useCallback(() => {
     localStorage.removeItem('jarvisToken');
@@ -658,33 +649,11 @@ export default function App() {
   const fetchTasks = useCallback(async () => {
     if (!token) return;
     try {
-      const r = await fetch(API, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      // FIX A: handle auth failure — log out and stop, same as before
-      if (r.status === 401 || r.status === 403) {
-        handleLogout();
-        return;
-      }
-
+      const r = await fetch(API, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (r.status === 401 || r.status === 403) { handleLogout(); return; }
       const data = await r.json();
-
-      // FIX B: THE CORE CRASH FIX.
-      // The original code was: .then(setTasks)
-      // setTasks is React's setState. If the backend returns an error object
-      // like { error: "..." } instead of an array, React sets tasks to that
-      // object. Then any tasks.map() call crashes with "e.map is not a function"
-      // because objects don't have .map().
-      // The fix: only call setTasks when data is actually an array.
-      if (Array.isArray(data)) {
-        setTasks(data);
-      } else {
-        console.error('fetchTasks: expected an array, got:', data);
-      }
-    } catch (error) {
-      console.error('fetchTasks failed:', error);
-    }
+      if (Array.isArray(data)) setTasks(data);
+    } catch (error) { console.error('fetchTasks failed:', error); }
   }, [token, handleLogout]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
@@ -712,17 +681,7 @@ export default function App() {
     if (!token) return;
     if (!title?.trim()) return;
     speak('Directive logged.');
-    fetch(API, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
-    })
-      // FIX C: always call fetchTasks() with no arguments.
-      // createTask originally called fetchTasks() correctly, but
-      // completeTask and triggerHulk were calling fetchTasks(token) —
-      // passing token as an argument to a function that takes no parameters.
-      // useCallback ignores the argument, but it signals confused intent.
-      // All calls are now consistent: fetchTasks() with no args.
+    fetch(API, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) })
       .then(() => { setNewTaskTitle(''); fetchTasks(); })
       .catch(console.error);
   }, [fetchTasks, token]);
@@ -731,12 +690,8 @@ export default function App() {
   const deleteTask = useCallback((id) => {
     if (!token) return;
     speak('Directive purged.');
-    fetch(`${API}/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` },
-    })
-      .then(fetchTasks)
-      .catch(console.error);
+    fetch(`${API}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })
+      .then(fetchTasks).catch(console.error);
   }, [fetchTasks, token]);
 
   /* ── Complete task → Mission Accomplished ── */
@@ -747,17 +702,12 @@ export default function App() {
     setMissionVisible(true);
     setTimeout(() => setMissionVisible(false), 2800);
     setTimeout(() => {
-      fetch(`${API}/${task._id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      }).then(() => {
-        setCompletedIds(prev => { const n = new Set(prev); n.delete(task._id); return n; });
-        // FIX D: was fetchTasks(token) — token is not a parameter of fetchTasks.
-        fetchTasks();
-      }).catch(console.error);
+      fetch(`${API}/${task._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })
+        .then(() => {
+          setCompletedIds(prev => { const n = new Set(prev); n.delete(task._id); return n; });
+          fetchTasks();
+        }).catch(console.error);
     }, 3200);
-    // FIX E: completeTask's dependency array was missing `token`.
-    // Without it, the closure captures a stale value of token after logout/login.
   }, [fetchTasks, token]);
 
   /* ── HULK MODE ── */
@@ -769,21 +719,11 @@ export default function App() {
       try {
         const r = await fetch(API, { headers: { 'Authorization': `Bearer ${token}` } });
         const current = await r.json();
-
-        // FIX F: was calling r.json() directly and then current.map().
-        // If the server returns an error object, current.map() crashes.
-        // Guard with Array.isArray before mapping.
         if (Array.isArray(current)) {
-          await Promise.all(
-            current.map(t =>
-              fetch(`${API}/${t._id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-              })
-            )
-          );
+          await Promise.all(current.map(t =>
+            fetch(`${API}/${t._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })
+          ));
         }
-        // FIX G: was fetchTasks(token) — no-arg call here too.
         fetchTasks();
       } catch (e) { console.error(e); }
     }, 2000);
@@ -791,9 +731,7 @@ export default function App() {
       setHulkMode(false);
       speak('Hulk contained. All directives purged, sir.');
     }, 5200);
-    // FIX H: triggerHulk's dependency array was [fetchTasks] only — missing `token`.
   }, [fetchTasks, token]);
-
 
   /* ── Drag end ── */
   const handleDragEnd = ({ active, over }) => {
@@ -805,7 +743,7 @@ export default function App() {
       });
     }
   };
-  
+
   /* ── Voice control ── */
   const startVoice = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -829,7 +767,6 @@ export default function App() {
       setVoiceTranscript(transcript);
       if (!event.results[event.results.length - 1].isFinal) return;
 
-      // Commands
       if (transcript.includes('hulk')) { triggerHulk(); return; }
 
       const addMatch = transcript.match(/^(?:add|log|new task|jarvis add)\s+(.+)/);
@@ -867,7 +804,6 @@ export default function App() {
     if (newTaskTitle.toLowerCase().includes('hulk smash')) { triggerHulk(); setNewTaskTitle(''); return; }
     createTask(newTaskTitle);
   };
-  
 
   /* ══════════════════════════
      RENDER
@@ -896,21 +832,21 @@ export default function App() {
       <MissionOverlay visible={missionVisible} />
       <HulkOverlay visible={hulkMode} />
 
-      {/* ── LAYOUT ── */}
-      <div className="relative z-10 p-3 h-screen flex flex-col">
+      {/* ════════════════════════════════════════
+          DESKTOP LAYOUT  (sm and above)
+          Three-column grid — identical to original
+      ════════════════════════════════════════ */}
+      <div className="hidden sm:flex relative z-10 p-3 h-screen flex-col">
 
         {/* Top bar */}
         <div className="flex justify-between items-center mb-2 px-2 text-[10px] tracking-[0.3em] text-cyan-800 border-b border-cyan-950 pb-2">
           <span>STARK INDUSTRIES // CLASSIFIED</span>
           <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="text-red-500">● LIVE FEED</motion.span>
-          
           <div className="flex items-center gap-4">
             <span>MARK VIII // J.A.R.V.I.S. v4.2</span>
-            {/* The Manual Override Button */}
-            <button 
+            <button
               onClick={handleLogout}
-              className="border border-red-900 text-red-700 hover:bg-red-950/50 hover:text-red-400 hover:border-red-500 px-2 py-0.5 transition-all"
-            >
+              className="border border-red-900 text-red-700 hover:bg-red-950/50 hover:text-red-400 hover:border-red-500 px-2 py-0.5 transition-all">
               [ OVERRIDE ]
             </button>
           </div>
@@ -1083,7 +1019,198 @@ export default function App() {
           <span>BUILD 4.2.1 // LEVEL 7 CLEARANCE</span>
         </div>
       </div>
-    </div> 
+
+      {/* ════════════════════════════════════════
+          MOBILE LAYOUT  (below sm breakpoint)
+          Single-column with bottom tab navigation
+      ════════════════════════════════════════ */}
+      <div className="flex sm:hidden relative z-10 flex-col h-screen">
+
+        {/* ── Mobile top bar ── */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-cyan-950 shrink-0">
+          <div className="flex items-center gap-2">
+            <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }}
+              className="w-1.5 h-1.5 rounded-full bg-red-500" style={{ boxShadow: '0 0 4px #ef4444' }} />
+            <motion.h1
+              animate={{ textShadow: ['0 0 8px rgba(34,211,238,0.5)', '0 0 20px rgba(34,211,238,0.9)', '0 0 8px rgba(34,211,238,0.5)'] }}
+              transition={{ duration: 3, repeat: Infinity }}
+              className="text-lg tracking-[0.2em] font-bold text-cyan-300">
+              J.A.R.V.I.S.
+            </motion.h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[9px] text-cyan-800 tracking-widest">
+              {tasks.length} ACTIVE
+            </span>
+            <button
+              onClick={handleLogout}
+              className="border border-red-900 text-red-700 text-[9px] tracking-widest px-2 py-0.5 active:bg-red-950/50 transition-all">
+              OVERRIDE
+            </button>
+          </div>
+        </div>
+
+        {/* ── Mobile panel content ── */}
+        <div className="flex-1 overflow-hidden">
+
+          {/* TASKS PANEL */}
+          {mobilePanel === 'tasks' && (
+            <div className="h-full flex flex-col p-3 gap-3">
+
+              {/* Mini header */}
+              <div className="flex justify-between items-center shrink-0">
+                <div className="text-[9px] tracking-[0.3em] text-cyan-700">// DIRECTIVE MANAGEMENT</div>
+                <div className="flex items-center gap-3 text-[9px] tracking-widest">
+                  <span className="text-cyan-800">COMPLETE: <span className="text-green-600 font-bold">{completedIds.size}</span></span>
+                  <button onClick={triggerHulk}
+                    className="border border-green-900 text-green-900 px-2 py-0.5 text-[9px] tracking-widest active:border-green-500 active:text-green-500 transition-all">
+                    💚 HULK
+                  </button>
+                </div>
+              </div>
+
+              {/* Input form */}
+              <form onSubmit={handleExecute}
+                className="flex gap-2 border border-cyan-800 bg-cyan-950/10 p-2.5 relative shrink-0"
+                style={{ boxShadow: '0 0 15px rgba(34,211,238,0.05) inset' }}>
+                <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t border-l border-cyan-500" />
+                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b border-r border-cyan-500" />
+                <span className="text-cyan-500 text-xs self-center">&gt;_</span>
+                <input
+                  type="text" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
+                  placeholder="AWAITING DIRECTIVE..."
+                  required
+                  className="flex-1 bg-transparent border-b border-cyan-800 text-cyan-200 px-1 py-1 outline-none focus:border-cyan-400 transition-all uppercase placeholder-cyan-900 text-xs tracking-widest" />
+                <button type="submit"
+                  className="border border-cyan-600 px-3 py-1 text-[10px] tracking-[0.15em] font-bold active:bg-cyan-900/40 transition-all"
+                  style={{ boxShadow: '0 0 8px rgba(34,211,238,0.1)' }}>
+                  LOG
+                </button>
+              </form>
+
+              {/* Voice row */}
+              <div className="flex gap-2 items-center shrink-0">
+                <VoiceIndicator active={voiceActive} transcript={voiceTranscript} error={voiceError} />
+                <button
+                  onMouseDown={startVoice} onMouseUp={stopVoice} onMouseLeave={stopVoice}
+                  onTouchStart={startVoice} onTouchEnd={stopVoice}
+                  className={`border px-3 py-2 text-[10px] tracking-[0.15em] font-bold transition-all select-none shrink-0
+                    ${voiceActive
+                      ? 'border-red-500 bg-red-950/40 text-red-400'
+                      : 'border-cyan-800 text-cyan-600'}`}>
+                  {voiceActive ? '● REC' : '🎤'}
+                </button>
+              </div>
+
+              {/* Task list */}
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={tasks.map(t => t._id)} strategy={verticalListSortingStrategy}>
+                    <AnimatePresence>
+                      {tasks.length === 0 ? (
+                        <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                          className="flex flex-col items-center justify-center h-32 gap-2">
+                          <motion.div animate={{ opacity: [0.3, 0.8, 0.3] }} transition={{ duration: 2, repeat: Infinity }}
+                            className="text-cyan-800 tracking-[0.3em] text-xs">NO PENDING DIRECTIVES</motion.div>
+                          <div className="text-[9px] text-cyan-900 tracking-widest">SYSTEM STANDING BY...</div>
+                        </motion.div>
+                      ) : (
+                        <div className="space-y-2 pb-2">
+                          {tasks.map((task, idx) => (
+                            <SortableTask key={task._id} task={task} index={idx}
+                              onComplete={completeTask} onDelete={deleteTask}
+                              isCompleted={completedIds.has(task._id)} />
+                          ))}
+                        </div>
+                      )}
+                    </AnimatePresence>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            </div>
+          )}
+
+          {/* SYSTEMS PANEL (left panel content) */}
+          {mobilePanel === 'systems' && (
+            <div className="h-full overflow-y-auto p-4 space-y-4">
+              <div className="text-[10px] tracking-[0.25em] text-cyan-700 border-b border-cyan-950 pb-2">POWER CORE // DIAGNOSTICS</div>
+              <ArcReactor hulkMode={hulkMode} />
+              <div className="space-y-3">
+                <SegBar label="CPU LOAD" value={37} />
+                <SegBar label="RAM USAGE" value={62} />
+                <SegBar label="NET I/O" value={81} accent="#f97316" />
+                <SegBar label="ARC OUTPUT" value={100} />
+              </div>
+              <div className="space-y-1.5 text-[10px] tracking-widest border-t border-cyan-950 pt-3">
+                <div className="flex justify-between"><span className="text-cyan-800">NEURAL LINK</span><span className="text-green-400">ESTABLISHED</span></div>
+                <div className="flex justify-between"><span className="text-cyan-800">ENCRYPTION</span><span className="text-cyan-400">AES-256</span></div>
+                <div className="flex justify-between"><span className="text-cyan-800">FIGHT SYS</span><span className="text-cyan-700">OFFLINE</span></div>
+                <div className="flex justify-between"><span className="text-cyan-800">REPULSOR</span>
+                  <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }} className="text-red-500">CHARGING</motion.span>
+                </div>
+              </div>
+              <div className="border-t border-cyan-950 pt-3">
+                <div className="text-[10px] tracking-[0.25em] text-cyan-700 mb-2">PROXIMITY SCAN</div>
+                <Radar taskCount={tasks.length} />
+              </div>
+            </div>
+          )}
+
+          {/* INTEL PANEL (right panel content) */}
+          {mobilePanel === 'intel' && (
+            <div className="h-full overflow-y-auto p-4 space-y-4">
+              <div className="text-[10px] tracking-[0.25em] text-cyan-700 border-b border-cyan-950 pb-2">SITUATIONAL AWARENESS</div>
+              <LiveClock />
+              <div className="grid grid-cols-2 gap-1.5 text-[10px] tracking-widest">
+                {[['SYS.MGR','border-cyan-800 text-cyan-600',false],['API.CON','border-cyan-800 text-cyan-600',false],
+                  ['WAR.DRV','border-red-800 text-red-500',true],['NET.MON','border-cyan-800 text-cyan-600',false]].map(([l,c,pulse],i) => (
+                  <div key={i} className={`border px-2 py-1 text-center ${c} ${pulse?'animate-pulse':''}`}>{l}</div>
+                ))}
+              </div>
+              <WeatherWidget data={weather} />
+              <CryptoTicker data={crypto} />
+              <AudioController />
+              <div className="border-t border-cyan-950 pt-3">
+                <div className="text-[10px] tracking-[0.25em] text-cyan-700 mb-2">TARGETING GRID</div>
+                <TargetReticle />
+                <div className="mt-1 text-[9px] text-cyan-900 tracking-widest text-center">LOCK ACQUISITION IN PROGRESS</div>
+              </div>
+              <div className="border-t border-cyan-950 pt-3"><NetBars /></div>
+              <div className="border-t border-cyan-950 pt-3 space-y-2 text-[10px] tracking-widest pb-2">
+                <div className="flex justify-between"><span className="text-cyan-900">GLOBAL NET</span><span className="text-green-400">ACTIVE</span></div>
+                <div className="flex justify-between"><span className="text-cyan-900">THREAT LVL</span><span className="text-yellow-400">MODERATE</span></div>
+                <div className="flex justify-between"><span className="text-cyan-900">SHIELD</span>
+                  <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.8, repeat: Infinity }} className="text-cyan-400">ONLINE</motion.span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Mobile bottom tab bar ── */}
+        <div className="shrink-0 border-t border-cyan-900 grid grid-cols-3"
+          style={{ boxShadow: '0 0 20px rgba(34,211,238,0.05) inset' }}>
+          {[
+            { id: 'systems', label: 'SYSTEMS',  icon: '⚙' },
+            { id: 'tasks',   label: 'DIRECTIVES', icon: '◈' },
+            { id: 'intel',   label: 'INTEL',    icon: '◉' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setMobilePanel(tab.id)}
+              className={`flex flex-col items-center justify-center py-3 gap-1 text-[9px] tracking-widest font-bold transition-all
+                ${mobilePanel === tab.id
+                  ? 'text-cyan-300 bg-cyan-950/40 border-t-2 border-cyan-400'
+                  : 'text-cyan-800 border-t-2 border-transparent active:bg-cyan-950/20'}`}
+              style={mobilePanel === tab.id ? { textShadow: '0 0 8px rgba(34,211,238,0.8)' } : {}}>
+              <span className="text-base leading-none">{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+    </div>
     ) : (
       <LoginScreen setToken={setToken} />
     )
