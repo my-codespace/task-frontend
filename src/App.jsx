@@ -648,29 +648,43 @@ export default function App() {
   );
   /* ── Override Protocol (Logout) ── */
   const handleLogout = useCallback(() => {
-    // 1. Erase the token from the browser's memory
     localStorage.removeItem('jarvisToken');
-    // 2. Clear the React state, which instantly triggers the ternary operator to show the Login screen
     setToken(null);
-    // 3. Clear out the tasks so the next person logging in doesn't see a flash of your data
-    setTasks([]); 
-    
+    setTasks([]);
     speak('Authorization revoked. Goodbye, sir.');
   }, []);
 
   /* ── Fetch tasks ── */
-  const fetchTasks = useCallback(() => {
-    if(!token) return;
-    fetch(API, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    }).then(r => {
-      // THE AUTO-EJECT SAFETY CHECK
+  const fetchTasks = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch(API, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      // FIX A: handle auth failure — log out and stop, same as before
       if (r.status === 401 || r.status === 403) {
-        handleLogout(); // Trigger the logout sequence
-        throw new Error("Authorization expired."); // Stop running the rest of the code
+        handleLogout();
+        return;
       }
-      return r.json();
-    }).then(setTasks).catch(console.error);
+
+      const data = await r.json();
+
+      // FIX B: THE CORE CRASH FIX.
+      // The original code was: .then(setTasks)
+      // setTasks is React's setState. If the backend returns an error object
+      // like { error: "..." } instead of an array, React sets tasks to that
+      // object. Then any tasks.map() call crashes with "e.map is not a function"
+      // because objects don't have .map().
+      // The fix: only call setTasks when data is actually an array.
+      if (Array.isArray(data)) {
+        setTasks(data);
+      } else {
+        console.error('fetchTasks: expected an array, got:', data);
+      }
+    } catch (error) {
+      console.error('fetchTasks failed:', error);
+    }
   }, [token, handleLogout]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
@@ -695,52 +709,91 @@ export default function App() {
 
   /* ── Create task ── */
   const createTask = useCallback((title) => {
-    if(!token) return;
+    if (!token) return;
     if (!title?.trim()) return;
     speak('Directive logged.');
-    fetch(API, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) })
-      .then(() => { setNewTaskTitle(''); fetchTasks(); });
+    fetch(API, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    })
+      // FIX C: always call fetchTasks() with no arguments.
+      // createTask originally called fetchTasks() correctly, but
+      // completeTask and triggerHulk were calling fetchTasks(token) —
+      // passing token as an argument to a function that takes no parameters.
+      // useCallback ignores the argument, but it signals confused intent.
+      // All calls are now consistent: fetchTasks() with no args.
+      .then(() => { setNewTaskTitle(''); fetchTasks(); })
+      .catch(console.error);
   }, [fetchTasks, token]);
 
   /* ── Delete task ── */
   const deleteTask = useCallback((id) => {
-    if(!token) return;
+    if (!token) return;
     speak('Directive purged.');
-    fetch(`${API}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }).then(fetchTasks);
+    fetch(`${API}/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+      .then(fetchTasks)
+      .catch(console.error);
   }, [fetchTasks, token]);
 
   /* ── Complete task → Mission Accomplished ── */
   const completeTask = useCallback((task) => {
-    if(!token) return;
+    if (!token) return;
     speak('Mission accomplished, sir.');
     setCompletedIds(prev => new Set([...prev, task._id]));
     setMissionVisible(true);
     setTimeout(() => setMissionVisible(false), 2800);
     setTimeout(() => {
-      fetch(`${API}/${task._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }).then(() => {
+      fetch(`${API}/${task._id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).then(() => {
         setCompletedIds(prev => { const n = new Set(prev); n.delete(task._id); return n; });
-        fetchTasks(token);
-      });
+        // FIX D: was fetchTasks(token) — token is not a parameter of fetchTasks.
+        fetchTasks();
+      }).catch(console.error);
     }, 3200);
-  }, [fetchTasks]);
+    // FIX E: completeTask's dependency array was missing `token`.
+    // Without it, the closure captures a stale value of token after logout/login.
+  }, [fetchTasks, token]);
 
   /* ── HULK MODE ── */
   const triggerHulk = useCallback(async () => {
-    if(!token) return;
+    if (!token) return;
     speak('Code green, sir. Initiating Hulk protocol.');
     setHulkMode(true);
     setTimeout(async () => {
       try {
-        const current = await fetch(API, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json());
-        await Promise.all(current.map(t => fetch(`${API}/${t._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })));
-        fetchTasks(token);
+        const r = await fetch(API, { headers: { 'Authorization': `Bearer ${token}` } });
+        const current = await r.json();
+
+        // FIX F: was calling r.json() directly and then current.map().
+        // If the server returns an error object, current.map() crashes.
+        // Guard with Array.isArray before mapping.
+        if (Array.isArray(current)) {
+          await Promise.all(
+            current.map(t =>
+              fetch(`${API}/${t._id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+              })
+            )
+          );
+        }
+        // FIX G: was fetchTasks(token) — no-arg call here too.
+        fetchTasks();
       } catch (e) { console.error(e); }
     }, 2000);
     setTimeout(() => {
       setHulkMode(false);
       speak('Hulk contained. All directives purged, sir.');
     }, 5200);
-  }, [fetchTasks]);
+    // FIX H: triggerHulk's dependency array was [fetchTasks] only — missing `token`.
+  }, [fetchTasks, token]);
+
 
   /* ── Drag end ── */
   const handleDragEnd = ({ active, over }) => {
