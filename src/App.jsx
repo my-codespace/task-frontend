@@ -65,15 +65,19 @@ const LiveClock = () => {
    ARC REACTOR
 ───────────────────────────────────────────── */
 const ArcReactor = ({ hulkMode, pomodoroActive }) => {
-  // When pomodoro is running, reactor pulses faster to signal focus mode
   const pulseDuration = pomodoroActive ? 1.2 : 2.5;
   const c = hulkMode ? '#22c55e' : '#22d3ee';
   const cFaint = hulkMode ? 'rgba(34,197,94,0.3)' : 'rgba(34,211,238,0.3)';
   const cGlow  = hulkMode ? 'rgba(34,197,94,' : 'rgba(34,211,238,';
+  
+  // A key we apply to motion elements so Framer Motion instantly applies new speed changes
+  const speedKey = pomodoroActive ? 'fast' : 'slow';
+
   return (
     <div className="relative w-44 h-44 flex items-center justify-center mx-auto">
       {pomodoroActive && (
         <motion.div
+          key={`pulse-${speedKey}`}
           animate={{ opacity: [0, 0.15, 0], scale: [1, 1.3, 1] }}
           transition={{ duration: pulseDuration, repeat: Infinity, ease: 'easeInOut' }}
           className="absolute w-44 h-44 rounded-full"
@@ -88,24 +92,27 @@ const ArcReactor = ({ hulkMode, pomodoroActive }) => {
             stroke={cFaint} strokeWidth={i % 3 === 0 ? 1.5 : 0.8} />;
         })}
       </svg>
-      <motion.div animate={{ rotate: -360 }} transition={{ duration: pomodoroActive ? 12 : 25, repeat: Infinity, ease: 'linear' }}
+      <motion.div key={`r1-${speedKey}`} animate={{ rotate: -360 }} transition={{ duration: pomodoroActive ? 12 : 25, repeat: Infinity, ease: 'linear' }}
         className="absolute w-40 h-40 rounded-full"
         style={{ border: `1px dashed ${cFaint}` }} />
-      <motion.div animate={{ rotate: 360 }} transition={{ duration: pomodoroActive ? 6 : 12, repeat: Infinity, ease: 'linear' }}
+      <motion.div key={`r2-${speedKey}`} animate={{ rotate: 360 }} transition={{ duration: pomodoroActive ? 6 : 12, repeat: Infinity, ease: 'linear' }}
         className="absolute w-32 h-32 rounded-full border-2"
         style={{ borderColor: hulkMode ? '#166534' : '#155e75', borderTopColor: c, boxShadow: `0 0 10px ${cGlow}0.2) inset` }} />
-      <motion.div animate={{ rotate: -360 }} transition={{ duration: pomodoroActive ? 2.5 : 5, repeat: Infinity, ease: 'linear' }}
+      <motion.div key={`r3-${speedKey}`} animate={{ rotate: -360 }} transition={{ duration: pomodoroActive ? 2.5 : 5, repeat: Infinity, ease: 'linear' }}
         className="absolute w-24 h-24 rounded-full"
         style={{ border: '2px solid transparent', borderTopColor: c, borderLeftColor: cFaint }} />
-      <motion.div animate={{ rotate: 360 }} transition={{ duration: pomodoroActive ? 2 : 4, repeat: Infinity, ease: 'linear' }}
+      <motion.div key={`r4-${speedKey}`} animate={{ rotate: 360 }} transition={{ duration: pomodoroActive ? 2 : 4, repeat: Infinity, ease: 'linear' }}
         className="absolute w-32 h-32 rounded-full"
         style={{ background: `conic-gradient(from 0deg, ${cGlow}0.5) 0%, ${cGlow}0.1) 25%, transparent 45%)` }} />
       <motion.div
+        key={`r5-${speedKey}`}
         animate={{ borderRadius: ['30% 70% 70% 30%/30% 30% 70% 70%', '70% 30% 30% 70%/70% 70% 30% 30%', '30% 70% 70% 30%/30% 30% 70% 70%'] }}
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
         className="absolute w-16 h-16 border"
         style={{ borderColor: c, boxShadow: `0 0 10px ${cGlow}0.3)` }} />
-      <motion.div animate={{ scale: [1, 1.25, 1], opacity: [0.85, 1, 0.85] }}
+      <motion.div 
+        key={`r6-${speedKey}`}
+        animate={{ scale: [1, 1.25, 1], opacity: [0.85, 1, 0.85] }}
         transition={{ duration: pulseDuration, repeat: Infinity, ease: 'easeInOut' }}
         className="relative w-9 h-9 rounded-full"
         style={{ background: hulkMode ? '#86efac' : '#67e8f9', boxShadow: `0 0 12px #fff, 0 0 30px ${c}, 0 0 60px ${cGlow}0.7)` }}>
@@ -118,80 +125,59 @@ const ArcReactor = ({ hulkMode, pomodoroActive }) => {
 
 /* ─────────────────────────────────────────────
    POMODORO TIMER
-   States: idle | focus | break
-   Circular SVG progress ring + JARVIS controls
 ───────────────────────────────────────────── */
-const FOCUS_SECS  = 25 * 60;
-const BREAK_SECS  = 5  * 60;
+const FOCUS_SECS  = 0.5 * 60;
+const BREAK_SECS  = 0.5  * 60;
 
 const PomodoroTimer = ({ onStateChange }) => {
-  const [mode, setMode]           = useState('idle');   // idle | focus | break
+  const [mode, setMode]           = useState('idle');
   const [remaining, setRemaining] = useState(FOCUS_SECS);
   const [sessions, setSessions]   = useState(0);
-  const intervalRef  = useRef(null);
-  // FIX 1: store mode in a ref so the interval callback always reads the
-  // latest value without needing to be recreated every time mode changes.
-  const modeRef      = useRef('idle');
-  // FIX 2: store onStateChange in a ref so it never triggers the notify
-  // effect just because the parent re-rendered and passed a new function ref.
-  const onChangeRef  = useRef(onStateChange);
-  useEffect(() => { onChangeRef.current = onStateChange; }, [onStateChange]);
 
-  const total    = mode === 'break' ? BREAK_SECS : FOCUS_SECS;
-  const progress = 1 - remaining / total;
-
-  // Notify parent whenever mode changes (ArcReactor speed-up)
+  // Notify parent of state (for Arc Reactor speeds)
   useEffect(() => {
-    onChangeRef.current?.(mode === 'focus');
+    onStateChange(mode === 'focus');
+  }, [mode, onStateChange]);
+
+  // EFFECT 1: Strict Timer Tick (only subtracts time, safely stops at 0)
+  useEffect(() => {
+    if (mode === 'idle') return;
+    const interval = setInterval(() => {
+      setRemaining(r => (r <= 1 ? 0 : r - 1));
+    }, 1000);
+    return () => clearInterval(interval);
   }, [mode]);
 
-  // FIX 3: interval is created ONCE on mount and never recreated.
-  // It reads modeRef.current (always fresh) instead of the stale closure.
+  // EFFECT 2: Transition Handler (triggers exactly when timer hits 0)
   useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      if (modeRef.current === 'idle') return;   // paused — do nothing
-      setRemaining(r => {
-        if (r <= 1) {
-          // Transition on the next tick so we don't call setState inside setState
-          setTimeout(() => {
-            if (modeRef.current === 'focus') {
-              setSessions(s => s + 1);
-              speak('Focus protocol complete. Rest period initiated, sir.');
-              modeRef.current = 'break';
-              setMode('break');
-              setRemaining(BREAK_SECS);
-            } else {
-              speak('Rest period complete. Ready for your next focus session, sir.');
-              modeRef.current = 'idle';
-              setMode('idle');
-              setRemaining(FOCUS_SECS);
-            }
-          }, 0);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
-    return () => clearInterval(intervalRef.current);
-  }, []);   // ← empty deps: single interval for entire lifetime of component
+    if (remaining === 0) {
+      if (mode === 'focus') {
+        setSessions(s => s + 1);
+        speak('Focus protocol complete. Rest period initiated, sir.');
+        setMode('break');
+        setRemaining(BREAK_SECS);
+      } else if (mode === 'break') {
+        speak('Rest period complete. Ready for your next focus session, sir.');
+        setMode('idle');
+        setRemaining(FOCUS_SECS);
+      }
+    }
+  }, [remaining, mode]);
 
   const startFocus = () => {
     speak('Focus protocol engaged. All distractions suppressed, sir.');
-    modeRef.current = 'focus';
     setMode('focus');
     setRemaining(FOCUS_SECS);
   };
 
   const abort = () => {
     speak('Focus protocol aborted.');
-    modeRef.current = 'idle';
     setMode('idle');
     setRemaining(FOCUS_SECS);
   };
 
   const skipBreak = () => {
     speak('Break skipped. Ready for next session.');
-    modeRef.current = 'idle';
     setMode('idle');
     setRemaining(FOCUS_SECS);
   };
@@ -200,7 +186,9 @@ const PomodoroTimer = ({ onStateChange }) => {
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
 
-  // SVG ring
+  // FIX: calculate `progress` FIRST, before calculating `dash`
+  const progress = 1 - remaining / (mode === 'break' ? BREAK_SECS : FOCUS_SECS);
+  
   const R = 44, CIRC = 2 * Math.PI * R;
   const dash = CIRC * (1 - progress);
   const ringColor = mode === 'break' ? '#22c55e' : mode === 'focus' ? '#22d3ee' : '#164e63';
@@ -216,13 +204,10 @@ const PomodoroTimer = ({ onStateChange }) => {
         </div>
       </div>
 
-      {/* Circular progress + time display */}
       <div className="flex items-center gap-4">
         <div className="relative w-24 h-24 shrink-0 mx-auto">
           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-            {/* Track */}
             <circle cx="50" cy="50" r={R} fill="none" stroke="rgba(34,211,238,0.08)" strokeWidth="5" />
-            {/* Progress */}
             <motion.circle
               cx="50" cy="50" r={R} fill="none"
               stroke={ringColor}
@@ -233,7 +218,6 @@ const PomodoroTimer = ({ onStateChange }) => {
               style={{ filter: `drop-shadow(0 0 4px ${ringGlow})`, transition: 'stroke-dashoffset 1s linear, stroke 0.5s' }}
             />
           </svg>
-          {/* Time in center */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div className="text-lg font-bold tabular-nums tracking-wider"
               style={{ color: ringColor, textShadow: `0 0 8px ${ringGlow}` }}>
@@ -245,7 +229,6 @@ const PomodoroTimer = ({ onStateChange }) => {
           </div>
         </div>
 
-        {/* Controls */}
         <div className="flex flex-col gap-2 flex-1">
           {mode === 'idle' && (
             <button onClick={startFocus}
@@ -269,7 +252,6 @@ const PomodoroTimer = ({ onStateChange }) => {
               </button>
             </>
           )}
-          {/* Mode indicator dots */}
           <div className="flex gap-1 justify-center mt-1">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="w-1.5 h-1.5 rounded-full"
@@ -283,9 +265,7 @@ const PomodoroTimer = ({ onStateChange }) => {
 };
 
 /* ─────────────────────────────────────────────
-   EFFICIENCY REPORT — 7-day bar chart
-   Reads from localStorage: jarvisStats
-   { "2025-05-17": 3, "2025-05-18": 5, ... }
+   EFFICIENCY REPORT
 ───────────────────────────────────────────── */
 const loadStats = () => {
   try { return JSON.parse(localStorage.getItem('jarvisStats') || '{}'); }
@@ -299,7 +279,6 @@ const saveStatDay = (dateKey, count) => {
 };
 
 const EfficiencyReport = ({ completedToday }) => {
-  // Build last 7 days array
   const days = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
@@ -309,7 +288,6 @@ const EfficiencyReport = ({ completedToday }) => {
   });
 
   const stats = loadStats();
-  // Inject today's live count
   const todayKey = new Date().toISOString().slice(0, 10);
   stats[todayKey] = completedToday;
 
@@ -326,7 +304,6 @@ const EfficiencyReport = ({ completedToday }) => {
         </div>
       </div>
 
-      {/* Bar chart */}
       <div className="flex items-end gap-1.5 h-16">
         {days.map(({ key, label }) => {
           const val = stats[key] || 0;
@@ -334,7 +311,6 @@ const EfficiencyReport = ({ completedToday }) => {
           const isToday = key === todayKey;
           return (
             <div key={key} className="flex-1 flex flex-col items-center gap-1">
-              {/* Value label on hover — show if > 0 */}
               {val > 0 && (
                 <div className="text-[8px] text-cyan-600 tabular-nums">{val}</div>
               )}
@@ -359,7 +335,6 @@ const EfficiencyReport = ({ completedToday }) => {
         })}
       </div>
 
-      {/* Efficiency rating */}
       <div className="flex justify-between text-[9px] tracking-widest border-t border-cyan-950 pt-2">
         <span className="text-cyan-900">TODAY</span>
         <span className="text-cyan-400 font-bold">{completedToday} COMPLETED</span>
@@ -817,7 +792,6 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
             {task.title}
           </span>
         </div>
-        {/* Desktop hover buttons */}
         <div className="hidden sm:flex gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0 ml-2">
           {!isCompleted && (
             <button onClick={() => onComplete(task)}
@@ -831,7 +805,6 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
           </button>
         </div>
       </div>
-      {/* Mobile always-visible buttons */}
       <div className="flex sm:hidden gap-2 mt-2 justify-end">
         {!isCompleted && (
           <button onClick={() => onComplete(task)}
@@ -847,6 +820,53 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
     </motion.div>
   );
 };
+
+/* ─────────────────────────────────────────────
+   LEFT PANEL CONTENT (Extracted out of App)
+───────────────────────────────────────────── */
+const LeftPanelContent = ({ hulkMode, pomodoroActive, setPomodoroActive, completedToday, taskCount }) => (
+  <>
+    <div className="text-[10px] tracking-[0.25em] text-cyan-700 border-b border-cyan-950 pb-2">POWER CORE // DIAGNOSTICS</div>
+
+    {/* Arc reactor — speeds up when pomodoro is active */}
+    <ArcReactor hulkMode={hulkMode} pomodoroActive={pomodoroActive} />
+
+    {/* Seg bars */}
+    <div className="space-y-3">
+      <SegBar label="CPU LOAD"  value={37} />
+      <SegBar label="RAM USAGE" value={62} />
+      <SegBar label="NET I/O"   value={81} accent="#f97316" />
+      <SegBar label="ARC OUTPUT" value={100} />
+    </div>
+
+    {/* System status */}
+    <div className="space-y-1.5 text-[10px] tracking-widest border-t border-cyan-950 pt-3">
+      <div className="flex justify-between"><span className="text-cyan-800">NEURAL LINK</span><span className="text-green-400">ESTABLISHED</span></div>
+      <div className="flex justify-between"><span className="text-cyan-800">ENCRYPTION</span><span className="text-cyan-400">AES-256</span></div>
+      <div className="flex justify-between"><span className="text-cyan-800">FIGHT SYS</span><span className="text-cyan-700">OFFLINE</span></div>
+      <div className="flex justify-between"><span className="text-cyan-800">REPULSOR</span>
+        <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }} className="text-red-500">CHARGING</motion.span>
+      </div>
+    </div>
+
+    {/* ── POMODORO TIMER ── */}
+    <div className="border-t border-cyan-950 pt-3">
+      <PomodoroTimer onStateChange={setPomodoroActive} />
+    </div>
+
+    {/* ── EFFICIENCY REPORT ── */}
+    <div className="border-t border-cyan-950 pt-3">
+      <EfficiencyReport completedToday={completedToday} />
+    </div>
+
+    {/* Radar */}
+    <div className="border-t border-cyan-950 pt-3">
+      <div className="text-[10px] tracking-[0.25em] text-cyan-700 mb-2">PROXIMITY SCAN</div>
+      <Radar taskCount={taskCount} />
+    </div>
+  </>
+);
+
 
 /* ═══════════════════════════════════════════
    MAIN APP
@@ -918,8 +938,6 @@ export default function App() {
       .then(d => setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code, wind: Math.round(d.current.wind_speed_10m) }))
       .catch(console.error);
 
-    // CoinGecko blocks browser requests with 429/CORS on free tier.
-    // Binance public ticker endpoint is CORS-open and doesn't need a key.
     Promise.all([
       fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT').then(r => r.json()),
       fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=ETHUSDT').then(r => r.json()),
@@ -946,13 +964,13 @@ export default function App() {
       .then(fetchTasks).catch(console.error);
   }, [fetchTasks, token]);
 
-  /* ── Complete task (increments efficiency counter) ── */
+  /* ── Complete task ── */
   const completeTask = useCallback((task) => {
     if (!token) return;
     speak('Mission accomplished, sir.');
     setCompletedIds(prev => new Set([...prev, task._id]));
     setMissionVisible(true);
-    setCompletedToday(n => n + 1);   // ← live stat increment
+    setCompletedToday(n => n + 1);
     setTimeout(() => setMissionVisible(false), 2800);
     setTimeout(() => {
       fetch(`${API}/${task._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })
@@ -1034,50 +1052,6 @@ export default function App() {
     createTask(newTaskTitle);
   };
 
-  /* ── Left panel content (shared between desktop and mobile SYSTEMS tab) ── */
-  const LeftPanelContent = () => (
-    <>
-      <div className="text-[10px] tracking-[0.25em] text-cyan-700 border-b border-cyan-950 pb-2">POWER CORE // DIAGNOSTICS</div>
-
-      {/* Arc reactor — speeds up when pomodoro is active */}
-      <ArcReactor hulkMode={hulkMode} pomodoroActive={pomodoroActive} />
-
-      {/* Seg bars */}
-      <div className="space-y-3">
-        <SegBar label="CPU LOAD"  value={37} />
-        <SegBar label="RAM USAGE" value={62} />
-        <SegBar label="NET I/O"   value={81} accent="#f97316" />
-        <SegBar label="ARC OUTPUT" value={100} />
-      </div>
-
-      {/* System status */}
-      <div className="space-y-1.5 text-[10px] tracking-widest border-t border-cyan-950 pt-3">
-        <div className="flex justify-between"><span className="text-cyan-800">NEURAL LINK</span><span className="text-green-400">ESTABLISHED</span></div>
-        <div className="flex justify-between"><span className="text-cyan-800">ENCRYPTION</span><span className="text-cyan-400">AES-256</span></div>
-        <div className="flex justify-between"><span className="text-cyan-800">FIGHT SYS</span><span className="text-cyan-700">OFFLINE</span></div>
-        <div className="flex justify-between"><span className="text-cyan-800">REPULSOR</span>
-          <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }} className="text-red-500">CHARGING</motion.span>
-        </div>
-      </div>
-
-      {/* ── POMODORO TIMER ── */}
-      <div className="border-t border-cyan-950 pt-3">
-        <PomodoroTimer onStateChange={setPomodoroActive} />
-      </div>
-
-      {/* ── EFFICIENCY REPORT ── */}
-      <div className="border-t border-cyan-950 pt-3">
-        <EfficiencyReport completedToday={completedToday} />
-      </div>
-
-      {/* Radar */}
-      <div className="border-t border-cyan-950 pt-3">
-        <div className="text-[10px] tracking-[0.25em] text-cyan-700 mb-2">PROXIMITY SCAN</div>
-        <Radar taskCount={tasks.length} />
-      </div>
-    </>
-  );
-
   /* ══════════════════════════
      RENDER
   ══════════════════════════ */
@@ -1088,7 +1062,6 @@ export default function App() {
       <HexGrid />
       <CircuitLines />
 
-      {/* Binary stream */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-[0.03]">
         <motion.div animate={{ y: [0, -1800] }} transition={{ duration: 90, repeat: Infinity, ease: 'linear' }}
           className="text-[10px] text-cyan-400 leading-4 whitespace-pre-wrap break-all p-4">
@@ -1096,7 +1069,6 @@ export default function App() {
         </motion.div>
       </div>
 
-      {/* Scan line */}
       <motion.div animate={{ top: ['-2%', '102%'] }} transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
         className="absolute left-0 w-full h-px pointer-events-none z-50"
         style={{ background: `linear-gradient(90deg, transparent, ${hulkMode ? 'rgba(34,197,94,0.5)' : 'rgba(34,211,238,0.4)'}, transparent)` }} />
@@ -1105,11 +1077,10 @@ export default function App() {
       <HulkOverlay visible={hulkMode} />
 
       {/* ════════════════════════════════
-          DESKTOP LAYOUT
+         DESKTOP LAYOUT
       ════════════════════════════════ */}
       <div className="hidden sm:flex relative z-10 p-3 h-screen flex-col">
 
-        {/* Top bar */}
         <div className="flex justify-between items-center mb-2 px-2 text-[10px] tracking-[0.3em] text-cyan-800 border-b border-cyan-950 pb-2">
           <span>STARK INDUSTRIES // CLASSIFIED</span>
           <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="text-red-500">● LIVE FEED</motion.span>
@@ -1122,14 +1093,19 @@ export default function App() {
           </div>
         </div>
 
-        {/* Three-column grid */}
         <div className="flex-1 grid grid-cols-[260px_1fr_230px] gap-3 min-h-0">
 
           {/* ═══ LEFT PANEL ═══ */}
           <div className="border border-cyan-900 relative p-4 flex flex-col gap-4 overflow-y-auto"
             style={{ boxShadow: '0 0 20px rgba(34,211,238,0.04) inset' }}>
             <HC pos="tl" /><HC pos="tr" /><HC pos="bl" /><HC pos="br" />
-            <LeftPanelContent />
+            <LeftPanelContent 
+              hulkMode={hulkMode} 
+              pomodoroActive={pomodoroActive} 
+              setPomodoroActive={setPomodoroActive} 
+              completedToday={completedToday} 
+              taskCount={tasks.length} 
+            />
           </div>
 
           {/* ═══ CENTER PANEL ═══ */}
@@ -1254,7 +1230,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Bottom bar */}
         <div className="flex justify-between items-center mt-2 px-2 text-[9px] tracking-[0.25em] text-cyan-900 border-t border-cyan-950 pt-2">
           <span>91.219.164.5 // UPLINK SECURE</span>
           <motion.span animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity }}>◈ ALL SYSTEMS NOMINAL ◈</motion.span>
@@ -1263,11 +1238,10 @@ export default function App() {
       </div>
 
       {/* ════════════════════════════════
-          MOBILE LAYOUT
+         MOBILE LAYOUT
       ════════════════════════════════ */}
       <div className="flex sm:hidden relative z-10 flex-col h-screen">
 
-        {/* Mobile top bar */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-cyan-950 shrink-0">
           <div className="flex items-center gap-2">
             <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }}
@@ -1288,7 +1262,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Mobile panel content */}
         <div className="flex-1 overflow-hidden">
 
           {/* TASKS PANEL */}
@@ -1355,10 +1328,16 @@ export default function App() {
             </div>
           )}
 
-          {/* SYSTEMS PANEL — now includes Pomodoro + Efficiency */}
+          {/* SYSTEMS PANEL */}
           {mobilePanel === 'systems' && (
             <div className="h-full overflow-y-auto p-4 space-y-4">
-              <LeftPanelContent />
+              <LeftPanelContent 
+                hulkMode={hulkMode} 
+                pomodoroActive={pomodoroActive} 
+                setPomodoroActive={setPomodoroActive} 
+                completedToday={completedToday} 
+                taskCount={tasks.length} 
+              />
             </div>
           )}
 
@@ -1393,7 +1372,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Mobile bottom tab bar */}
         <div className="shrink-0 border-t border-cyan-900 grid grid-cols-3"
           style={{ boxShadow: '0 0 20px rgba(34,211,238,0.05) inset' }}>
           {[
