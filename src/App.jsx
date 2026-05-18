@@ -135,9 +135,9 @@ const PomodoroTimer = ({ onStateChange }) => {
   const [sessions, setSessions]   = useState(0);
 
   // Notify parent of state (for Arc Reactor speeds)
-  useEffect(() => {
-    onStateChange(mode === 'focus');
-  }, [mode, onStateChange]);
+useEffect(() => {
+  onStateChange?.(mode === 'focus');
+}, [mode, onStateChange]);
 
   // EFFECT 1: Strict Timer Tick (only subtracts time, safely stops at 0)
   useEffect(() => {
