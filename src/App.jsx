@@ -12,7 +12,7 @@ import { CSS } from '@dnd-kit/utilities';
 const API = 'https://task-api-xo97.onrender.com/tasks';
 
 /* ─────────────────────────────────────────────
-   SPEAK  (British JARVIS voice)
+   SPEAK
 ───────────────────────────────────────────── */
 const speak = (text) => {
   if (!('speechSynthesis' in window)) return;
@@ -62,14 +62,24 @@ const LiveClock = () => {
 };
 
 /* ─────────────────────────────────────────────
-   ARC REACTOR (5 rings, hulk-aware)
+   ARC REACTOR
 ───────────────────────────────────────────── */
-const ArcReactor = ({ hulkMode }) => {
+const ArcReactor = ({ hulkMode, pomodoroActive }) => {
+  // When pomodoro is running, reactor pulses faster to signal focus mode
+  const pulseDuration = pomodoroActive ? 1.2 : 2.5;
   const c = hulkMode ? '#22c55e' : '#22d3ee';
   const cFaint = hulkMode ? 'rgba(34,197,94,0.3)' : 'rgba(34,211,238,0.3)';
   const cGlow  = hulkMode ? 'rgba(34,197,94,' : 'rgba(34,211,238,';
   return (
     <div className="relative w-44 h-44 flex items-center justify-center mx-auto">
+      {pomodoroActive && (
+        <motion.div
+          animate={{ opacity: [0, 0.15, 0], scale: [1, 1.3, 1] }}
+          transition={{ duration: pulseDuration, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute w-44 h-44 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.4) 0%, transparent 70%)' }}
+        />
+      )}
       <svg className="absolute w-full h-full" viewBox="0 0 176 176">
         {Array.from({ length: 36 }).map((_, i) => {
           const a = (i * 10 * Math.PI) / 180, r1 = 84, r2 = i % 3 === 0 ? 78 : 80;
@@ -78,16 +88,16 @@ const ArcReactor = ({ hulkMode }) => {
             stroke={cFaint} strokeWidth={i % 3 === 0 ? 1.5 : 0.8} />;
         })}
       </svg>
-      <motion.div animate={{ rotate: -360 }} transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+      <motion.div animate={{ rotate: -360 }} transition={{ duration: pomodoroActive ? 12 : 25, repeat: Infinity, ease: 'linear' }}
         className="absolute w-40 h-40 rounded-full"
         style={{ border: `1px dashed ${cFaint}` }} />
-      <motion.div animate={{ rotate: 360 }} transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
+      <motion.div animate={{ rotate: 360 }} transition={{ duration: pomodoroActive ? 6 : 12, repeat: Infinity, ease: 'linear' }}
         className="absolute w-32 h-32 rounded-full border-2"
         style={{ borderColor: hulkMode ? '#166534' : '#155e75', borderTopColor: c, boxShadow: `0 0 10px ${cGlow}0.2) inset` }} />
-      <motion.div animate={{ rotate: -360 }} transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
+      <motion.div animate={{ rotate: -360 }} transition={{ duration: pomodoroActive ? 2.5 : 5, repeat: Infinity, ease: 'linear' }}
         className="absolute w-24 h-24 rounded-full"
         style={{ border: '2px solid transparent', borderTopColor: c, borderLeftColor: cFaint }} />
-      <motion.div animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+      <motion.div animate={{ rotate: 360 }} transition={{ duration: pomodoroActive ? 2 : 4, repeat: Infinity, ease: 'linear' }}
         className="absolute w-32 h-32 rounded-full"
         style={{ background: `conic-gradient(from 0deg, ${cGlow}0.5) 0%, ${cGlow}0.1) 25%, transparent 45%)` }} />
       <motion.div
@@ -96,12 +106,251 @@ const ArcReactor = ({ hulkMode }) => {
         className="absolute w-16 h-16 border"
         style={{ borderColor: c, boxShadow: `0 0 10px ${cGlow}0.3)` }} />
       <motion.div animate={{ scale: [1, 1.25, 1], opacity: [0.85, 1, 0.85] }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+        transition={{ duration: pulseDuration, repeat: Infinity, ease: 'easeInOut' }}
         className="relative w-9 h-9 rounded-full"
         style={{ background: hulkMode ? '#86efac' : '#67e8f9', boxShadow: `0 0 12px #fff, 0 0 30px ${c}, 0 0 60px ${cGlow}0.7)` }}>
         <div className="absolute inset-1 rounded-full bg-cyan-950" />
         <div className="absolute inset-2 rounded-full opacity-80" style={{ background: hulkMode ? '#86efac' : '#67e8f9' }} />
       </motion.div>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   POMODORO TIMER
+   States: idle | focus | break
+   Circular SVG progress ring + JARVIS controls
+───────────────────────────────────────────── */
+const FOCUS_SECS  = 25 * 60;
+const BREAK_SECS  = 5  * 60;
+
+const PomodoroTimer = ({ onStateChange }) => {
+  const [mode, setMode]         = useState('idle');   // idle | focus | break
+  const [remaining, setRemaining] = useState(FOCUS_SECS);
+  const [sessions, setSessions] = useState(0);
+  const intervalRef = useRef(null);
+
+  const total = mode === 'break' ? BREAK_SECS : FOCUS_SECS;
+  const progress = 1 - remaining / total;
+
+  // Notify parent so ArcReactor can speed up
+  useEffect(() => {
+    onStateChange?.(mode === 'focus');
+  }, [mode, onStateChange]);
+
+  // Countdown tick
+  useEffect(() => {
+    if (mode === 'idle') return;
+    intervalRef.current = setInterval(() => {
+      setRemaining(r => {
+        if (r <= 1) {
+          clearInterval(intervalRef.current);
+          if (mode === 'focus') {
+            setSessions(s => s + 1);
+            speak('Focus protocol complete. Rest period initiated, sir.');
+            setMode('break');
+            setRemaining(BREAK_SECS);
+          } else {
+            speak('Rest period complete. Ready for your next focus session, sir.');
+            setMode('idle');
+            setRemaining(FOCUS_SECS);
+          }
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalRef.current);
+  }, [mode]);
+
+  const startFocus = () => {
+    speak('Focus protocol engaged. All distractions suppressed, sir.');
+    setMode('focus');
+    setRemaining(FOCUS_SECS);
+  };
+
+  const abort = () => {
+    clearInterval(intervalRef.current);
+    speak('Focus protocol aborted.');
+    setMode('idle');
+    setRemaining(FOCUS_SECS);
+  };
+
+  const skipBreak = () => {
+    clearInterval(intervalRef.current);
+    speak('Break skipped. Ready for next session.');
+    setMode('idle');
+    setRemaining(FOCUS_SECS);
+  };
+
+  const pad = n => String(n).padStart(2, '0');
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+
+  // SVG ring
+  const R = 44, CIRC = 2 * Math.PI * R;
+  const dash = CIRC * (1 - progress);
+  const ringColor = mode === 'break' ? '#22c55e' : mode === 'focus' ? '#22d3ee' : '#164e63';
+  const ringGlow  = mode === 'break' ? 'rgba(34,197,94,0.7)' : mode === 'focus' ? 'rgba(34,211,238,0.7)' : 'transparent';
+
+  return (
+    <div className="border border-cyan-900 p-3 space-y-2">
+      <div className="flex items-center justify-between text-[10px] tracking-widest text-cyan-700">
+        <span>FOCUS PROTOCOL</span>
+        <div className="flex items-center gap-2">
+          <span className="text-cyan-900">SESSIONS:</span>
+          <span className="text-cyan-400 font-bold">{sessions}</span>
+        </div>
+      </div>
+
+      {/* Circular progress + time display */}
+      <div className="flex items-center gap-4">
+        <div className="relative w-24 h-24 shrink-0 mx-auto">
+          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+            {/* Track */}
+            <circle cx="50" cy="50" r={R} fill="none" stroke="rgba(34,211,238,0.08)" strokeWidth="5" />
+            {/* Progress */}
+            <motion.circle
+              cx="50" cy="50" r={R} fill="none"
+              stroke={ringColor}
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeDasharray={CIRC}
+              strokeDashoffset={dash}
+              style={{ filter: `drop-shadow(0 0 4px ${ringGlow})`, transition: 'stroke-dashoffset 1s linear, stroke 0.5s' }}
+            />
+          </svg>
+          {/* Time in center */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="text-lg font-bold tabular-nums tracking-wider"
+              style={{ color: ringColor, textShadow: `0 0 8px ${ringGlow}` }}>
+              {pad(mins)}:{pad(secs)}
+            </div>
+            <div className="text-[8px] tracking-widest text-cyan-800 mt-0.5">
+              {mode === 'idle' ? 'STANDBY' : mode === 'focus' ? 'FOCUS' : 'BREAK'}
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex flex-col gap-2 flex-1">
+          {mode === 'idle' && (
+            <button onClick={startFocus}
+              className="border border-cyan-600 text-cyan-400 text-[10px] tracking-[0.2em] font-bold py-2 px-3 hover:bg-cyan-900/40 hover:border-cyan-300 transition-all w-full"
+              style={{ boxShadow: '0 0 8px rgba(34,211,238,0.1)' }}>
+              ▶ ENGAGE
+            </button>
+          )}
+          {mode === 'focus' && (
+            <button onClick={abort}
+              className="border border-red-800 text-red-600 text-[10px] tracking-[0.2em] font-bold py-2 px-3 hover:bg-red-950/40 hover:border-red-500 hover:text-red-400 transition-all w-full">
+              ■ ABORT
+            </button>
+          )}
+          {mode === 'break' && (
+            <>
+              <div className="text-[9px] text-green-600 tracking-widest text-center animate-pulse">REST INITIATED</div>
+              <button onClick={skipBreak}
+                className="border border-cyan-900 text-cyan-700 text-[10px] tracking-widest py-1.5 px-3 hover:border-cyan-600 hover:text-cyan-400 transition-all w-full">
+                SKIP REST
+              </button>
+            </>
+          )}
+          {/* Mode indicator dots */}
+          <div className="flex gap-1 justify-center mt-1">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="w-1.5 h-1.5 rounded-full"
+                style={{ background: i < sessions % 4 ? '#22d3ee' : 'rgba(34,211,238,0.15)', boxShadow: i < sessions % 4 ? '0 0 4px #22d3ee' : 'none' }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   EFFICIENCY REPORT — 7-day bar chart
+   Reads from localStorage: jarvisStats
+   { "2025-05-17": 3, "2025-05-18": 5, ... }
+───────────────────────────────────────────── */
+const loadStats = () => {
+  try { return JSON.parse(localStorage.getItem('jarvisStats') || '{}'); }
+  catch { return {}; }
+};
+
+const saveStatDay = (dateKey, count) => {
+  const s = loadStats();
+  s[dateKey] = count;
+  localStorage.setItem('jarvisStats', JSON.stringify(s));
+};
+
+const EfficiencyReport = ({ completedToday }) => {
+  // Build last 7 days array
+  const days = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const key = d.toISOString().slice(0, 10);
+    const label = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase().slice(0, 3);
+    return { key, label };
+  });
+
+  const stats = loadStats();
+  // Inject today's live count
+  const todayKey = new Date().toISOString().slice(0, 10);
+  stats[todayKey] = completedToday;
+
+  const maxVal = Math.max(1, ...days.map(d => stats[d.key] || 0));
+  const totalWeek = days.reduce((s, d) => s + (stats[d.key] || 0), 0);
+
+  return (
+    <div className="border border-cyan-900 p-3 space-y-2">
+      <div className="flex items-center justify-between text-[10px] tracking-widest">
+        <span className="text-cyan-700">EFFICIENCY REPORT</span>
+        <div className="flex items-center gap-2">
+          <span className="text-cyan-900">7-DAY:</span>
+          <span className="text-cyan-400 font-bold">{totalWeek}</span>
+        </div>
+      </div>
+
+      {/* Bar chart */}
+      <div className="flex items-end gap-1.5 h-16">
+        {days.map(({ key, label }) => {
+          const val = stats[key] || 0;
+          const heightPct = (val / maxVal) * 100;
+          const isToday = key === todayKey;
+          return (
+            <div key={key} className="flex-1 flex flex-col items-center gap-1">
+              {/* Value label on hover — show if > 0 */}
+              {val > 0 && (
+                <div className="text-[8px] text-cyan-600 tabular-nums">{val}</div>
+              )}
+              <div className="w-full flex-1 flex items-end">
+                <motion.div
+                  initial={{ height: 0 }}
+                  animate={{ height: `${Math.max(heightPct, val > 0 ? 8 : 0)}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  className="w-full rounded-sm"
+                  style={{
+                    background: isToday ? '#22d3ee' : 'rgba(34,211,238,0.35)',
+                    boxShadow: isToday ? '0 0 6px rgba(34,211,238,0.8)' : 'none',
+                    minHeight: val > 0 ? '4px' : '1px',
+                  }}
+                />
+              </div>
+              <div className={`text-[8px] tracking-wider ${isToday ? 'text-cyan-400' : 'text-cyan-800'}`}>
+                {label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Efficiency rating */}
+      <div className="flex justify-between text-[9px] tracking-widest border-t border-cyan-950 pt-2">
+        <span className="text-cyan-900">TODAY</span>
+        <span className="text-cyan-400 font-bold">{completedToday} COMPLETED</span>
+      </div>
     </div>
   );
 };
@@ -392,7 +641,7 @@ const HulkOverlay = ({ visible }) => (
 );
 
 /* ─────────────────────────────────────────────
-   AUTHORIZATION TERMINAL (LOGIN/REGISTER)
+   LOGIN SCREEN
 ───────────────────────────────────────────── */
 const LoginScreen = ({ setToken }) => {
   const [username, setUsername] = useState('');
@@ -444,19 +693,15 @@ const LoginScreen = ({ setToken }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-[10px] tracking-widest text-cyan-700 mb-2">IDENTIFIER</label>
-            <input
-              type="text" value={username} onChange={e => setUsername(e.target.value)} required
+            <input type="text" value={username} onChange={e => setUsername(e.target.value)} required
               className="w-full bg-transparent border-b border-cyan-800 text-cyan-200 px-2 py-2 outline-none focus:border-cyan-400 transition-all tracking-widest uppercase"
-              placeholder="ENTER USERNAME"
-            />
+              placeholder="ENTER USERNAME" />
           </div>
           <div>
             <label className="block text-[10px] tracking-widest text-cyan-700 mb-2">PASSCODE</label>
-            <input
-              type="password" value={password} onChange={e => setPassword(e.target.value)} required
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
               className="w-full bg-transparent border-b border-cyan-800 text-cyan-200 px-2 py-2 outline-none focus:border-cyan-400 transition-all tracking-widest"
-              placeholder="••••••••"
-            />
+              placeholder="••••••••" />
           </div>
           {error && (
             <div className={`text-[10px] tracking-widest text-center animate-pulse ${error.includes('SUCCESS') ? 'text-green-500' : 'text-red-500'}`}>
@@ -478,7 +723,7 @@ const LoginScreen = ({ setToken }) => {
 };
 
 /* ─────────────────────────────────────────────
-   AMBIENT AUDIO CONTROLLER
+   AUDIO CONTROLLER
 ───────────────────────────────────────────── */
 const AudioController = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -504,21 +749,15 @@ const AudioController = () => {
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => setIsPlaying(!isPlaying)}
+        <button onClick={() => setIsPlaying(!isPlaying)}
           className={`border px-3 py-1 text-[10px] font-bold tracking-widest transition-all ${
-            isPlaying
-              ? 'border-cyan-500 bg-cyan-950/30 text-cyan-300'
-              : 'border-cyan-800 text-cyan-600 hover:border-cyan-500'
-          }`}
-        >
+            isPlaying ? 'border-cyan-500 bg-cyan-950/30 text-cyan-300' : 'border-cyan-800 text-cyan-600 hover:border-cyan-500'
+          }`}>
           {isPlaying ? '■ STOP' : '▶ PLAY'}
         </button>
-        <input
-          type="range" min="0" max="1" step="0.05" value={volume}
+        <input type="range" min="0" max="1" step="0.05" value={volume}
           onChange={(e) => setVolume(parseFloat(e.target.value))}
-          className="flex-1 accent-cyan-500 h-1 bg-cyan-950 appearance-none rounded-full cursor-pointer"
-        />
+          className="flex-1 accent-cyan-500 h-1 bg-cyan-950 appearance-none rounded-full cursor-pointer" />
       </div>
     </div>
   );
@@ -526,8 +765,6 @@ const AudioController = () => {
 
 /* ─────────────────────────────────────────────
    SORTABLE TASK CARD
-   Mobile: buttons always visible (no hover)
-   Desktop: buttons appear on hover (unchanged)
 ───────────────────────────────────────────── */
 const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task._id });
@@ -544,18 +781,12 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
       exit={{ opacity: 0, x: 80, filter: 'blur(6px)' }}
       transition={{ duration: 0.35, delay: index * 0.05 }}
       className={`border bg-cyan-950/15 p-3 sm:p-4 transition-all group relative
-        ${isDragging
-          ? 'border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)]'
-          : isCompleted
-            ? 'border-green-900'
-            : 'border-cyan-900 hover:border-cyan-600 hover:bg-cyan-950/30'}`}>
-
+        ${isDragging ? 'border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)]'
+          : isCompleted ? 'border-green-900'
+          : 'border-cyan-900 hover:border-cyan-600 hover:bg-cyan-950/30'}`}>
       <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-cyan-700 group-hover:border-cyan-400 transition-colors" />
       <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-cyan-700 group-hover:border-cyan-400 transition-colors" />
-
-      {/* Top row: drag handle + task title */}
       <div className="flex items-center gap-3">
-        {/* Drag handle */}
         <div {...attributes} {...listeners}
           className="text-cyan-800 hover:text-cyan-500 cursor-grab active:cursor-grabbing flex flex-col gap-0.5 shrink-0 select-none"
           title="Drag to reorder">
@@ -565,7 +796,6 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
             </div>
           ))}
         </div>
-
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <span className="text-cyan-800 text-xs w-5 shrink-0 tabular-nums">{String(index + 1).padStart(2, '0')}</span>
           <div className="w-0.5 h-6 bg-cyan-800 group-hover:bg-cyan-500 transition-colors shrink-0" />
@@ -574,8 +804,7 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
             {task.title}
           </span>
         </div>
-
-        {/* Desktop: hover-only buttons */}
+        {/* Desktop hover buttons */}
         <div className="hidden sm:flex gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0 ml-2">
           {!isCompleted && (
             <button onClick={() => onComplete(task)}
@@ -589,8 +818,7 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
           </button>
         </div>
       </div>
-
-      {/* Mobile: always-visible action buttons below the title */}
+      {/* Mobile always-visible buttons */}
       <div className="flex sm:hidden gap-2 mt-2 justify-end">
         {!isCompleted && (
           <button onClick={() => onComplete(task)}
@@ -611,25 +839,31 @@ const SortableTask = ({ task, index, onComplete, onDelete, isCompleted }) => {
    MAIN APP
 ═══════════════════════════════════════════ */
 export default function App() {
-  const [tasks, setTasks] = useState([]);
+  const [tasks, setTasks]               = useState([]);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [completedIds, setCompletedIds] = useState(new Set());
   const [missionVisible, setMissionVisible] = useState(false);
-  const [hulkMode, setHulkMode] = useState(false);
-  const [token, setToken] = useState(localStorage.getItem('jarvisToken'));
+  const [hulkMode, setHulkMode]         = useState(false);
+  const [token, setToken]               = useState(localStorage.getItem('jarvisToken'));
+  const [mobilePanel, setMobilePanel]   = useState('tasks');
+  const [pomodoroActive, setPomodoroActive] = useState(false);
 
-  // Mobile panel navigation: 'tasks' | 'left' | 'right'
-  const [mobilePanel, setMobilePanel] = useState('tasks');
+  // completedToday: live count for efficiency chart, persisted to localStorage
+  const [completedToday, setCompletedToday] = useState(() => {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const stats = loadStats();
+    return stats[todayKey] || 0;
+  });
 
   // Voice
-  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceActive, setVoiceActive]       = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceError, setVoiceError] = useState('');
+  const [voiceError, setVoiceError]         = useState('');
   const recognitionRef = useRef(null);
 
   // Ambient data
   const [weather, setWeather] = useState(null);
-  const [crypto, setCrypto] = useState(null);
+  const [crypto, setCrypto]   = useState(null);
 
   // DnD
   const sensors = useSensors(
@@ -637,7 +871,13 @@ export default function App() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  /* ── Override Protocol (Logout) ── */
+  /* ── Persist completedToday to localStorage whenever it changes ── */
+  useEffect(() => {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    saveStatDay(todayKey, completedToday);
+  }, [completedToday]);
+
+  /* ── Logout ── */
   const handleLogout = useCallback(() => {
     localStorage.removeItem('jarvisToken');
     setToken(null);
@@ -662,11 +902,8 @@ export default function App() {
   useEffect(() => {
     fetch('https://api.open-meteo.com/v1/forecast?latitude=28.67&longitude=77.45&current=temperature_2m,weather_code,wind_speed_10m')
       .then(r => r.json())
-      .then(d => setWeather({
-        temp: Math.round(d.current.temperature_2m),
-        code: d.current.weather_code,
-        wind: Math.round(d.current.wind_speed_10m),
-      })).catch(console.error);
+      .then(d => setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code, wind: Math.round(d.current.wind_speed_10m) }))
+      .catch(console.error);
 
     fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true')
       .then(r => r.json())
@@ -678,8 +915,7 @@ export default function App() {
 
   /* ── Create task ── */
   const createTask = useCallback((title) => {
-    if (!token) return;
-    if (!title?.trim()) return;
+    if (!token || !title?.trim()) return;
     speak('Directive logged.');
     fetch(API, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) })
       .then(() => { setNewTaskTitle(''); fetchTasks(); })
@@ -694,12 +930,13 @@ export default function App() {
       .then(fetchTasks).catch(console.error);
   }, [fetchTasks, token]);
 
-  /* ── Complete task → Mission Accomplished ── */
+  /* ── Complete task (increments efficiency counter) ── */
   const completeTask = useCallback((task) => {
     if (!token) return;
     speak('Mission accomplished, sir.');
     setCompletedIds(prev => new Set([...prev, task._id]));
     setMissionVisible(true);
+    setCompletedToday(n => n + 1);   // ← live stat increment
     setTimeout(() => setMissionVisible(false), 2800);
     setTimeout(() => {
       fetch(`${API}/${task._id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })
@@ -727,10 +964,7 @@ export default function App() {
         fetchTasks();
       } catch (e) { console.error(e); }
     }, 2000);
-    setTimeout(() => {
-      setHulkMode(false);
-      speak('Hulk contained. All directives purged, sir.');
-    }, 5200);
+    setTimeout(() => { setHulkMode(false); speak('Hulk contained. All directives purged, sir.'); }, 5200);
   }, [fetchTasks, token]);
 
   /* ── Drag end ── */
@@ -749,16 +983,12 @@ export default function App() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setVoiceError('BROWSER UNSUPPORTED'); return; }
     if (voiceActive) return;
-
     const rec = new SR();
-    rec.lang = 'en-US';
-    rec.interimResults = true;
-    rec.maxAlternatives = 1;
+    rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1;
     recognitionRef.current = rec;
-
-    rec.onstart = () => { setVoiceActive(true); setVoiceError(''); setVoiceTranscript(''); };
-    rec.onend   = () => { setVoiceActive(false); setVoiceTranscript(''); };
-    rec.onerror = (e) => {
+    rec.onstart  = () => { setVoiceActive(true); setVoiceError(''); setVoiceTranscript(''); };
+    rec.onend    = () => { setVoiceActive(false); setVoiceTranscript(''); };
+    rec.onerror  = (e) => {
       setVoiceActive(false);
       setVoiceError(e.error === 'not-allowed' ? 'MIC ACCESS DENIED' : e.error === 'no-speech' ? 'NO SPEECH DETECTED' : `ERR: ${e.error.toUpperCase()}`);
     };
@@ -766,33 +996,16 @@ export default function App() {
       const transcript = Array.from(event.results).map(r => r[0].transcript).join('').toLowerCase().trim();
       setVoiceTranscript(transcript);
       if (!event.results[event.results.length - 1].isFinal) return;
-
       if (transcript.includes('hulk')) { triggerHulk(); return; }
-
       const addMatch = transcript.match(/^(?:add|log|new task|jarvis add)\s+(.+)/);
       if (addMatch) { createTask(addMatch[1]); speak(`Logging: ${addMatch[1]}.`); return; }
-
       const completeMatch = transcript.match(/^(?:complete|done|finished|mark done)\s+(.+)/);
-      if (completeMatch) {
-        const found = tasks.find(t => t.title.toLowerCase().includes(completeMatch[1]));
-        found ? completeTask(found) : speak('Directive not found, sir.');
-        return;
-      }
-
+      if (completeMatch) { const found = tasks.find(t => t.title.toLowerCase().includes(completeMatch[1])); found ? completeTask(found) : speak('Directive not found, sir.'); return; }
       const purgeMatch = transcript.match(/^(?:purge|delete|remove)\s+(.+)/);
-      if (purgeMatch) {
-        const found = tasks.find(t => t.title.toLowerCase().includes(purgeMatch[1]));
-        found ? deleteTask(found._id) : speak('Could not locate that directive, sir.');
-        return;
-      }
-
-      if (transcript.includes('status') || transcript.includes('how many')) {
-        speak(`You have ${tasks.length} active directive${tasks.length !== 1 ? 's' : ''}, sir.`); return;
-      }
-
+      if (purgeMatch) { const found = tasks.find(t => t.title.toLowerCase().includes(purgeMatch[1])); found ? deleteTask(found._id) : speak('Could not locate that directive, sir.'); return; }
+      if (transcript.includes('status') || transcript.includes('how many')) { speak(`You have ${tasks.length} active directive${tasks.length !== 1 ? 's' : ''}, sir.`); return; }
       speak('Command not recognised, sir. Please try again.');
     };
-
     try { rec.start(); } catch { setVoiceError('RECOGNITION FAILED'); }
   }, [voiceActive, tasks, triggerHulk, createTask, completeTask, deleteTask]);
 
@@ -804,6 +1017,50 @@ export default function App() {
     if (newTaskTitle.toLowerCase().includes('hulk smash')) { triggerHulk(); setNewTaskTitle(''); return; }
     createTask(newTaskTitle);
   };
+
+  /* ── Left panel content (shared between desktop and mobile SYSTEMS tab) ── */
+  const LeftPanelContent = () => (
+    <>
+      <div className="text-[10px] tracking-[0.25em] text-cyan-700 border-b border-cyan-950 pb-2">POWER CORE // DIAGNOSTICS</div>
+
+      {/* Arc reactor — speeds up when pomodoro is active */}
+      <ArcReactor hulkMode={hulkMode} pomodoroActive={pomodoroActive} />
+
+      {/* Seg bars */}
+      <div className="space-y-3">
+        <SegBar label="CPU LOAD"  value={37} />
+        <SegBar label="RAM USAGE" value={62} />
+        <SegBar label="NET I/O"   value={81} accent="#f97316" />
+        <SegBar label="ARC OUTPUT" value={100} />
+      </div>
+
+      {/* System status */}
+      <div className="space-y-1.5 text-[10px] tracking-widest border-t border-cyan-950 pt-3">
+        <div className="flex justify-between"><span className="text-cyan-800">NEURAL LINK</span><span className="text-green-400">ESTABLISHED</span></div>
+        <div className="flex justify-between"><span className="text-cyan-800">ENCRYPTION</span><span className="text-cyan-400">AES-256</span></div>
+        <div className="flex justify-between"><span className="text-cyan-800">FIGHT SYS</span><span className="text-cyan-700">OFFLINE</span></div>
+        <div className="flex justify-between"><span className="text-cyan-800">REPULSOR</span>
+          <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }} className="text-red-500">CHARGING</motion.span>
+        </div>
+      </div>
+
+      {/* ── POMODORO TIMER ── */}
+      <div className="border-t border-cyan-950 pt-3">
+        <PomodoroTimer onStateChange={setPomodoroActive} />
+      </div>
+
+      {/* ── EFFICIENCY REPORT ── */}
+      <div className="border-t border-cyan-950 pt-3">
+        <EfficiencyReport completedToday={completedToday} />
+      </div>
+
+      {/* Radar */}
+      <div className="border-t border-cyan-950 pt-3">
+        <div className="text-[10px] tracking-[0.25em] text-cyan-700 mb-2">PROXIMITY SCAN</div>
+        <Radar taskCount={tasks.length} />
+      </div>
+    </>
+  );
 
   /* ══════════════════════════
      RENDER
@@ -823,19 +1080,17 @@ export default function App() {
         </motion.div>
       </div>
 
-      {/* Horizontal scan line */}
+      {/* Scan line */}
       <motion.div animate={{ top: ['-2%', '102%'] }} transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
         className="absolute left-0 w-full h-px pointer-events-none z-50"
         style={{ background: `linear-gradient(90deg, transparent, ${hulkMode ? 'rgba(34,197,94,0.5)' : 'rgba(34,211,238,0.4)'}, transparent)` }} />
 
-      {/* Overlays */}
       <MissionOverlay visible={missionVisible} />
       <HulkOverlay visible={hulkMode} />
 
-      {/* ════════════════════════════════════════
-          DESKTOP LAYOUT  (sm and above)
-          Three-column grid — identical to original
-      ════════════════════════════════════════ */}
+      {/* ════════════════════════════════
+          DESKTOP LAYOUT
+      ════════════════════════════════ */}
       <div className="hidden sm:flex relative z-10 p-3 h-screen flex-col">
 
         {/* Top bar */}
@@ -844,8 +1099,7 @@ export default function App() {
           <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="text-red-500">● LIVE FEED</motion.span>
           <div className="flex items-center gap-4">
             <span>MARK VIII // J.A.R.V.I.S. v4.2</span>
-            <button
-              onClick={handleLogout}
+            <button onClick={handleLogout}
               className="border border-red-900 text-red-700 hover:bg-red-950/50 hover:text-red-400 hover:border-red-500 px-2 py-0.5 transition-all">
               [ OVERRIDE ]
             </button>
@@ -856,29 +1110,10 @@ export default function App() {
         <div className="flex-1 grid grid-cols-[260px_1fr_230px] gap-3 min-h-0">
 
           {/* ═══ LEFT PANEL ═══ */}
-          <div className="border border-cyan-900 relative p-4 flex flex-col gap-4 overflow-hidden"
+          <div className="border border-cyan-900 relative p-4 flex flex-col gap-4 overflow-y-auto"
             style={{ boxShadow: '0 0 20px rgba(34,211,238,0.04) inset' }}>
             <HC pos="tl" /><HC pos="tr" /><HC pos="bl" /><HC pos="br" />
-            <div className="text-[10px] tracking-[0.25em] text-cyan-700 border-b border-cyan-950 pb-2">POWER CORE // DIAGNOSTICS</div>
-            <ArcReactor hulkMode={hulkMode} />
-            <div className="space-y-3">
-              <SegBar label="CPU LOAD" value={37} />
-              <SegBar label="RAM USAGE" value={62} />
-              <SegBar label="NET I/O" value={81} accent="#f97316" />
-              <SegBar label="ARC OUTPUT" value={100} />
-            </div>
-            <div className="space-y-1.5 text-[10px] tracking-widest border-t border-cyan-950 pt-3">
-              <div className="flex justify-between"><span className="text-cyan-800">NEURAL LINK</span><span className="text-green-400">ESTABLISHED</span></div>
-              <div className="flex justify-between"><span className="text-cyan-800">ENCRYPTION</span><span className="text-cyan-400">AES-256</span></div>
-              <div className="flex justify-between"><span className="text-cyan-800">FIGHT SYS</span><span className="text-cyan-700">OFFLINE</span></div>
-              <div className="flex justify-between"><span className="text-cyan-800">REPULSOR</span>
-                <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }} className="text-red-500">CHARGING</motion.span>
-              </div>
-            </div>
-            <div className="border-t border-cyan-950 pt-3">
-              <div className="text-[10px] tracking-[0.25em] text-cyan-700 mb-2">PROXIMITY SCAN</div>
-              <Radar taskCount={tasks.length} />
-            </div>
+            <LeftPanelContent />
           </div>
 
           {/* ═══ CENTER PANEL ═══ */}
@@ -886,7 +1121,6 @@ export default function App() {
             style={{ boxShadow: '0 0 30px rgba(34,211,238,0.05) inset' }}>
             <HC pos="tl" /><HC pos="tr" /><HC pos="bl" /><HC pos="br" />
 
-            {/* Header */}
             <div className="flex justify-between items-start border-b-2 border-cyan-900 pb-4">
               <div>
                 <div className="text-[10px] tracking-[0.4em] text-cyan-700 mb-1">// OPERATIONAL INTERFACE</div>
@@ -908,16 +1142,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* Voice row */}
             <div className="flex gap-2 items-center">
               <VoiceIndicator active={voiceActive} transcript={voiceTranscript} error={voiceError} />
-              <button
-                onMouseDown={startVoice} onMouseUp={stopVoice} onMouseLeave={stopVoice}
+              <button onMouseDown={startVoice} onMouseUp={stopVoice} onMouseLeave={stopVoice}
                 onTouchStart={startVoice} onTouchEnd={stopVoice}
                 className={`border px-4 py-2 text-[10px] tracking-[0.2em] font-bold transition-all select-none shrink-0
-                  ${voiceActive
-                    ? 'border-red-500 bg-red-950/40 text-red-400'
-                    : 'border-cyan-800 hover:border-cyan-500 hover:bg-cyan-950/30 text-cyan-600 hover:text-cyan-300'}`}>
+                  ${voiceActive ? 'border-red-500 bg-red-950/40 text-red-400' : 'border-cyan-800 hover:border-cyan-500 hover:bg-cyan-950/30 text-cyan-600 hover:text-cyan-300'}`}>
                 {voiceActive ? '● REC' : '🎤 HOLD'}
               </button>
             </div>
@@ -925,7 +1155,6 @@ export default function App() {
               VOICE: "ADD [task]" · "COMPLETE [task]" · "PURGE [task]" · "STATUS" · "HULK SMASH"
             </div>
 
-            {/* Text input */}
             <form onSubmit={handleExecute}
               className="flex gap-3 border border-cyan-800 bg-cyan-950/10 p-3 relative"
               style={{ boxShadow: '0 0 15px rgba(34,211,238,0.05) inset' }}>
@@ -933,8 +1162,7 @@ export default function App() {
               <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-cyan-500" />
               <span className="text-cyan-500 mt-2 text-xs">&gt;_</span>
               <input type="text" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
-                placeholder="AWAITING DIRECTIVE..."
-                required
+                placeholder="AWAITING DIRECTIVE..." required
                 className="flex-1 bg-transparent border-b border-cyan-800 text-cyan-200 px-2 py-1 outline-none focus:border-cyan-400 transition-all uppercase placeholder-cyan-900 text-sm tracking-widest" />
               <button type="submit"
                 className="border border-cyan-600 px-6 py-2 text-xs tracking-[0.2em] font-bold hover:bg-cyan-900/40 hover:border-cyan-300 hover:text-cyan-200 transition-all"
@@ -943,7 +1171,6 @@ export default function App() {
               </button>
             </form>
 
-            {/* Stats + Hulk trigger */}
             <div className="flex items-center gap-4 text-[10px] tracking-widest text-cyan-800">
               <span>ACTIVE:</span><span className="text-cyan-400 font-bold">{tasks.length}</span>
               <span>COMPLETE:</span><span className="text-green-600 font-bold">{completedIds.size}</span>
@@ -954,7 +1181,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Task list — draggable */}
             <div className="flex-1 overflow-y-auto pr-1 min-h-0 scrollbar-thin scrollbar-thumb-cyan-900 scrollbar-track-transparent">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={tasks.map(t => t._id)} strategy={verticalListSortingStrategy}>
@@ -1020,13 +1246,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* ════════════════════════════════════════
-          MOBILE LAYOUT  (below sm breakpoint)
-          Single-column with bottom tab navigation
-      ════════════════════════════════════════ */}
+      {/* ════════════════════════════════
+          MOBILE LAYOUT
+      ════════════════════════════════ */}
       <div className="flex sm:hidden relative z-10 flex-col h-screen">
 
-        {/* ── Mobile top bar ── */}
+        {/* Mobile top bar */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-cyan-950 shrink-0">
           <div className="flex items-center gap-2">
             <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }}
@@ -1039,47 +1264,38 @@ export default function App() {
             </motion.h1>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[9px] text-cyan-800 tracking-widest">
-              {tasks.length} ACTIVE
-            </span>
-            <button
-              onClick={handleLogout}
+            <span className="text-[9px] text-cyan-800 tracking-widest">{tasks.length} ACTIVE</span>
+            <button onClick={handleLogout}
               className="border border-red-900 text-red-700 text-[9px] tracking-widest px-2 py-0.5 active:bg-red-950/50 transition-all">
               OVERRIDE
             </button>
           </div>
         </div>
 
-        {/* ── Mobile panel content ── */}
+        {/* Mobile panel content */}
         <div className="flex-1 overflow-hidden">
 
           {/* TASKS PANEL */}
           {mobilePanel === 'tasks' && (
             <div className="h-full flex flex-col p-3 gap-3">
-
-              {/* Mini header */}
               <div className="flex justify-between items-center shrink-0">
                 <div className="text-[9px] tracking-[0.3em] text-cyan-700">// DIRECTIVE MANAGEMENT</div>
                 <div className="flex items-center gap-3 text-[9px] tracking-widest">
-                  <span className="text-cyan-800">COMPLETE: <span className="text-green-600 font-bold">{completedIds.size}</span></span>
+                  <span className="text-cyan-800">DONE: <span className="text-green-600 font-bold">{completedToday}</span></span>
                   <button onClick={triggerHulk}
                     className="border border-green-900 text-green-900 px-2 py-0.5 text-[9px] tracking-widest active:border-green-500 active:text-green-500 transition-all">
                     💚 HULK
                   </button>
                 </div>
               </div>
-
-              {/* Input form */}
               <form onSubmit={handleExecute}
                 className="flex gap-2 border border-cyan-800 bg-cyan-950/10 p-2.5 relative shrink-0"
                 style={{ boxShadow: '0 0 15px rgba(34,211,238,0.05) inset' }}>
                 <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t border-l border-cyan-500" />
                 <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b border-r border-cyan-500" />
                 <span className="text-cyan-500 text-xs self-center">&gt;_</span>
-                <input
-                  type="text" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
-                  placeholder="AWAITING DIRECTIVE..."
-                  required
+                <input type="text" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
+                  placeholder="AWAITING DIRECTIVE..." required
                   className="flex-1 bg-transparent border-b border-cyan-800 text-cyan-200 px-1 py-1 outline-none focus:border-cyan-400 transition-all uppercase placeholder-cyan-900 text-xs tracking-widest" />
                 <button type="submit"
                   className="border border-cyan-600 px-3 py-1 text-[10px] tracking-[0.15em] font-bold active:bg-cyan-900/40 transition-all"
@@ -1087,22 +1303,15 @@ export default function App() {
                   LOG
                 </button>
               </form>
-
-              {/* Voice row */}
               <div className="flex gap-2 items-center shrink-0">
                 <VoiceIndicator active={voiceActive} transcript={voiceTranscript} error={voiceError} />
-                <button
-                  onMouseDown={startVoice} onMouseUp={stopVoice} onMouseLeave={stopVoice}
+                <button onMouseDown={startVoice} onMouseUp={stopVoice} onMouseLeave={stopVoice}
                   onTouchStart={startVoice} onTouchEnd={stopVoice}
                   className={`border px-3 py-2 text-[10px] tracking-[0.15em] font-bold transition-all select-none shrink-0
-                    ${voiceActive
-                      ? 'border-red-500 bg-red-950/40 text-red-400'
-                      : 'border-cyan-800 text-cyan-600'}`}>
+                    ${voiceActive ? 'border-red-500 bg-red-950/40 text-red-400' : 'border-cyan-800 text-cyan-600'}`}>
                   {voiceActive ? '● REC' : '🎤'}
                 </button>
               </div>
-
-              {/* Task list */}
               <div className="flex-1 overflow-y-auto min-h-0">
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={tasks.map(t => t._id)} strategy={verticalListSortingStrategy}>
@@ -1130,33 +1339,14 @@ export default function App() {
             </div>
           )}
 
-          {/* SYSTEMS PANEL (left panel content) */}
+          {/* SYSTEMS PANEL — now includes Pomodoro + Efficiency */}
           {mobilePanel === 'systems' && (
             <div className="h-full overflow-y-auto p-4 space-y-4">
-              <div className="text-[10px] tracking-[0.25em] text-cyan-700 border-b border-cyan-950 pb-2">POWER CORE // DIAGNOSTICS</div>
-              <ArcReactor hulkMode={hulkMode} />
-              <div className="space-y-3">
-                <SegBar label="CPU LOAD" value={37} />
-                <SegBar label="RAM USAGE" value={62} />
-                <SegBar label="NET I/O" value={81} accent="#f97316" />
-                <SegBar label="ARC OUTPUT" value={100} />
-              </div>
-              <div className="space-y-1.5 text-[10px] tracking-widest border-t border-cyan-950 pt-3">
-                <div className="flex justify-between"><span className="text-cyan-800">NEURAL LINK</span><span className="text-green-400">ESTABLISHED</span></div>
-                <div className="flex justify-between"><span className="text-cyan-800">ENCRYPTION</span><span className="text-cyan-400">AES-256</span></div>
-                <div className="flex justify-between"><span className="text-cyan-800">FIGHT SYS</span><span className="text-cyan-700">OFFLINE</span></div>
-                <div className="flex justify-between"><span className="text-cyan-800">REPULSOR</span>
-                  <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 2, repeat: Infinity }} className="text-red-500">CHARGING</motion.span>
-                </div>
-              </div>
-              <div className="border-t border-cyan-950 pt-3">
-                <div className="text-[10px] tracking-[0.25em] text-cyan-700 mb-2">PROXIMITY SCAN</div>
-                <Radar taskCount={tasks.length} />
-              </div>
+              <LeftPanelContent />
             </div>
           )}
 
-          {/* INTEL PANEL (right panel content) */}
+          {/* INTEL PANEL */}
           {mobilePanel === 'intel' && (
             <div className="h-full overflow-y-auto p-4 space-y-4">
               <div className="text-[10px] tracking-[0.25em] text-cyan-700 border-b border-cyan-950 pb-2">SITUATIONAL AWARENESS</div>
@@ -1187,17 +1377,15 @@ export default function App() {
           )}
         </div>
 
-        {/* ── Mobile bottom tab bar ── */}
+        {/* Mobile bottom tab bar */}
         <div className="shrink-0 border-t border-cyan-900 grid grid-cols-3"
           style={{ boxShadow: '0 0 20px rgba(34,211,238,0.05) inset' }}>
           {[
-            { id: 'systems', label: 'SYSTEMS',  icon: '⚙' },
+            { id: 'systems', label: 'SYSTEMS',    icon: '⚙' },
             { id: 'tasks',   label: 'DIRECTIVES', icon: '◈' },
-            { id: 'intel',   label: 'INTEL',    icon: '◉' },
+            { id: 'intel',   label: 'INTEL',      icon: '◉' },
           ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setMobilePanel(tab.id)}
+            <button key={tab.id} onClick={() => setMobilePanel(tab.id)}
               className={`flex flex-col items-center justify-center py-3 gap-1 text-[9px] tracking-widest font-bold transition-all
                 ${mobilePanel === tab.id
                   ? 'text-cyan-300 bg-cyan-950/40 border-t-2 border-cyan-400'
