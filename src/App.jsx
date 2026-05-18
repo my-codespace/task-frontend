@@ -125,60 +125,73 @@ const FOCUS_SECS  = 25 * 60;
 const BREAK_SECS  = 5  * 60;
 
 const PomodoroTimer = ({ onStateChange }) => {
-  const [mode, setMode]         = useState('idle');   // idle | focus | break
+  const [mode, setMode]           = useState('idle');   // idle | focus | break
   const [remaining, setRemaining] = useState(FOCUS_SECS);
-  const [sessions, setSessions] = useState(0);
-  const intervalRef = useRef(null);
+  const [sessions, setSessions]   = useState(0);
+  const intervalRef  = useRef(null);
+  // FIX 1: store mode in a ref so the interval callback always reads the
+  // latest value without needing to be recreated every time mode changes.
+  const modeRef      = useRef('idle');
+  // FIX 2: store onStateChange in a ref so it never triggers the notify
+  // effect just because the parent re-rendered and passed a new function ref.
+  const onChangeRef  = useRef(onStateChange);
+  useEffect(() => { onChangeRef.current = onStateChange; }, [onStateChange]);
 
-  const total = mode === 'break' ? BREAK_SECS : FOCUS_SECS;
+  const total    = mode === 'break' ? BREAK_SECS : FOCUS_SECS;
   const progress = 1 - remaining / total;
 
-  // Notify parent so ArcReactor can speed up
+  // Notify parent whenever mode changes (ArcReactor speed-up)
   useEffect(() => {
-    onStateChange?.(mode === 'focus');
-  }, [mode, onStateChange]);
+    onChangeRef.current?.(mode === 'focus');
+  }, [mode]);
 
-  // Countdown tick
+  // FIX 3: interval is created ONCE on mount and never recreated.
+  // It reads modeRef.current (always fresh) instead of the stale closure.
   useEffect(() => {
-    if (mode === 'idle') return;
     intervalRef.current = setInterval(() => {
+      if (modeRef.current === 'idle') return;   // paused — do nothing
       setRemaining(r => {
         if (r <= 1) {
-          clearInterval(intervalRef.current);
-          if (mode === 'focus') {
-            setSessions(s => s + 1);
-            speak('Focus protocol complete. Rest period initiated, sir.');
-            setMode('break');
-            setRemaining(BREAK_SECS);
-          } else {
-            speak('Rest period complete. Ready for your next focus session, sir.');
-            setMode('idle');
-            setRemaining(FOCUS_SECS);
-          }
+          // Transition on the next tick so we don't call setState inside setState
+          setTimeout(() => {
+            if (modeRef.current === 'focus') {
+              setSessions(s => s + 1);
+              speak('Focus protocol complete. Rest period initiated, sir.');
+              modeRef.current = 'break';
+              setMode('break');
+              setRemaining(BREAK_SECS);
+            } else {
+              speak('Rest period complete. Ready for your next focus session, sir.');
+              modeRef.current = 'idle';
+              setMode('idle');
+              setRemaining(FOCUS_SECS);
+            }
+          }, 0);
           return 0;
         }
         return r - 1;
       });
     }, 1000);
     return () => clearInterval(intervalRef.current);
-  }, [mode]);
+  }, []);   // ← empty deps: single interval for entire lifetime of component
 
   const startFocus = () => {
     speak('Focus protocol engaged. All distractions suppressed, sir.');
+    modeRef.current = 'focus';
     setMode('focus');
     setRemaining(FOCUS_SECS);
   };
 
   const abort = () => {
-    clearInterval(intervalRef.current);
     speak('Focus protocol aborted.');
+    modeRef.current = 'idle';
     setMode('idle');
     setRemaining(FOCUS_SECS);
   };
 
   const skipBreak = () => {
-    clearInterval(intervalRef.current);
     speak('Break skipped. Ready for next session.');
+    modeRef.current = 'idle';
     setMode('idle');
     setRemaining(FOCUS_SECS);
   };
@@ -905,12 +918,15 @@ export default function App() {
       .then(d => setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code, wind: Math.round(d.current.wind_speed_10m) }))
       .catch(console.error);
 
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true')
-      .then(r => r.json())
-      .then(d => setCrypto([
-        { id: 'bitcoin',  symbol: 'BTC', price: Math.round(d.bitcoin.usd),  change: +(d.bitcoin.usd_24h_change  || 0).toFixed(2) },
-        { id: 'ethereum', symbol: 'ETH', price: Math.round(d.ethereum.usd), change: +(d.ethereum.usd_24h_change || 0).toFixed(2) },
-      ])).catch(console.error);
+    // CoinGecko blocks browser requests with 429/CORS on free tier.
+    // Binance public ticker endpoint is CORS-open and doesn't need a key.
+    Promise.all([
+      fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT').then(r => r.json()),
+      fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=ETHUSDT').then(r => r.json()),
+    ]).then(([btc, eth]) => setCrypto([
+      { id: 'bitcoin',  symbol: 'BTC', price: Math.round(parseFloat(btc.lastPrice)),  change: +parseFloat(btc.priceChangePercent).toFixed(2) },
+      { id: 'ethereum', symbol: 'ETH', price: Math.round(parseFloat(eth.lastPrice)), change: +parseFloat(eth.priceChangePercent).toFixed(2) },
+    ])).catch(console.error);
   }, []);
 
   /* ── Create task ── */
